@@ -1,4 +1,4 @@
-Patrol Route — Diagnostic v0.9.3
+Patrol Route — Diagnostic v0.9.4
 
 DEPLOYMENT
 Upload these four files to the root of the GitHub Pages repository:
@@ -14,6 +14,7 @@ DIAGNOSTIC BEHAVIOR
 - Road components are assigned distinct colors after graph construction.
 - Dashed orange candidates form the minimum set of shortest endpoint-to-endpoint gaps needed to span the component graph.
 - Gap labels show feet and the details show the nearest road on both sides.
+- Selecting a sidebar gap (or its dashed map line) zooms to it, highlights both endpoints, and opens its detail popup.
 - The app checks filtered county features within 40 feet of each candidate and reports the road name and exclusion reason.
 - Candidate gaps are visualization only. They are never inserted into the routing graph.
 - The non-local-road checkbox allows comparison against the unfiltered county set.
