@@ -1,0 +1,9 @@
+{
+  "name": "Patrol Route \u2014 Deerfield",
+  "short_name": "Patrol Route",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#11151b",
+  "theme_color": "#11151b",
+  "description": "Prototype residential street coverage routing app for Deerfield."
+}

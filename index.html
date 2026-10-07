@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#11151b">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Patrol Route Prototype v0.7 Hosted — Deerfield</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQ3yn5RzYExw4DZsO8I7YwE8GQh6E6Q=" crossorigin="">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+
+<style>
+
+/* Embedded Leaflet core layout fallback for Android content:// files */
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.leaflet-container {
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  background: #ddd;
+  outline-offset: 1px;
+}
+.leaflet-container.leaflet-touch-zoom {
+  touch-action: pan-x pan-y;
+}
+.leaflet-container.leaflet-touch-drag {
+  touch-action: none;
+  touch-action: pinch-zoom;
+}
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+  touch-action: none;
+}
+.leaflet-container {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.leaflet-container img,
+.leaflet-container .leaflet-overlay-pane svg {
+  max-width: none !important;
+  max-height: none !important;
+}
+.leaflet-container img.leaflet-image-layer {
+  max-width: 15000px !important;
+  max-height: 15000px !important;
+}
+.leaflet-tile {
+  filter: inherit;
+  visibility: hidden;
+}
+.leaflet-tile-loaded {
+  visibility: inherit;
+}
+.leaflet-zoom-box {
+  width: 0;
+  height: 0;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  z-index: 800;
+}
+.leaflet-pane { z-index: 400; }
+.leaflet-tile-pane { z-index: 200; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-shadow-pane { z-index: 500; }
+.leaflet-marker-pane { z-index: 600; }
+.leaflet-tooltip-pane { z-index: 650; }
+.leaflet-popup-pane { z-index: 700; }
+.leaflet-map-pane canvas { z-index: 100; }
+.leaflet-map-pane svg { z-index: 200; }
+
+.leaflet-vml-shape {
+  width: 1px;
+  height: 1px;
+}
+.lvml {
+  behavior: url(#default#VML);
+  display: inline-block;
+  position: absolute;
+}
+
+.leaflet-control {
+  position: relative;
+  z-index: 800;
+  pointer-events: auto;
+}
+.leaflet-top,
+.leaflet-bottom {
+  position: absolute;
+  z-index: 1000;
+  pointer-events: none;
+}
+.leaflet-top { top: 0; }
+.leaflet-right { right: 0; }
+.leaflet-bottom { bottom: 0; }
+.leaflet-left { left: 0; }
+.leaflet-control {
+  float: left;
+  clear: both;
+}
+.leaflet-right .leaflet-control { float: right; }
+.leaflet-top .leaflet-control { margin-top: 10px; }
+.leaflet-bottom .leaflet-control { margin-bottom: 10px; }
+.leaflet-left .leaflet-control { margin-left: 10px; }
+.leaflet-right .leaflet-control { margin-right: 10px; }
+
+.leaflet-fade-anim .leaflet-popup {
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup {
+  opacity: 1;
+}
+.leaflet-zoom-animated {
+  transform-origin: 0 0;
+}
+svg.leaflet-zoom-animated {
+  will-change: transform;
+}
+
+.leaflet-interactive {
+  cursor: pointer;
+}
+.leaflet-grab {
+  cursor: grab;
+}
+.leaflet-crosshair,
+.leaflet-crosshair .leaflet-interactive {
+  cursor: crosshair;
+}
+.leaflet-popup-pane,
+.leaflet-control {
+  cursor: auto;
+}
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-dragging .leaflet-marker-draggable {
+  cursor: move;
+  cursor: grabbing;
+}
+
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-image-layer,
+.leaflet-pane > svg path,
+.leaflet-tile-container {
+  pointer-events: none;
+}
+.leaflet-marker-icon.leaflet-interactive,
+.leaflet-image-layer.leaflet-interactive,
+.leaflet-pane > svg path.leaflet-interactive,
+svg.leaflet-image-layer.leaflet-interactive path {
+  pointer-events: auto;
+}
+
+.leaflet-bar {
+  box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+  border-radius: 4px;
+}
+.leaflet-bar a {
+  background-color: #fff;
+  border-bottom: 1px solid #ccc;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  color: black;
+}
+.leaflet-bar a:hover { background-color: #f4f4f4; }
+.leaflet-bar a:first-child {
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+.leaflet-bar a:last-child {
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+  border-bottom: none;
+}
+.leaflet-bar a.leaflet-disabled {
+  cursor: default;
+  background-color: #f4f4f4;
+  color: #bbb;
+}
+
+.leaflet-touch .leaflet-bar a {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+}
+.leaflet-touch .leaflet-bar {
+  border: 2px solid rgba(0,0,0,0.2);
+  background-clip: padding-box;
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  font: bold 18px 'Lucida Console', Monaco, monospace;
+  text-indent: 1px;
+}
+
+.leaflet-control-attribution {
+  background: rgba(255,255,255,0.8);
+  margin: 0;
+  color: #333;
+  padding: 0 5px;
+  font-size: 11px;
+}
+.leaflet-control-attribution a { text-decoration: none; }
+.leaflet-control-attribution a:hover { text-decoration: underline; }
+
+.leaflet-tooltip {
+  position: absolute;
+  padding: 6px;
+  background-color: #fff;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  color: #222;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.leaflet-tooltip.leaflet-interactive {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+  :root {
+    color-scheme: dark;
+    --bg:#11151b;
+    --panel:#191f27;
+    --panel2:#222a34;
+    --text:#eef3f7;
+    --muted:#9fadb9;
+    --accent:#55a7ff;
+    --good:#4dd27d;
+    --warn:#ffbd59;
+    --danger:#ff6b6b;
+    --border:#34404d;
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+  #app { height:100%; display:grid; grid-template-rows:auto 1fr; }
+  header {
+    padding:10px 12px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  header h1 { font-size:16px; margin:0 8px 0 0; white-space:nowrap; }
+  button, .toggle {
+    border:1px solid var(--border);
+    background:var(--panel2);
+    color:var(--text);
+    border-radius:8px;
+    padding:9px 11px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  button:hover { filter:brightness(1.12); }
+  button.primary { background:#1f5f9c; border-color:#2c79bd; }
+  button.good { background:#21613c; border-color:#2f8653; }
+  button.danger { background:#6a2a2a; border-color:#934040; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .toggle { display:flex; align-items:center; gap:6px; }
+  .toggle input { accent-color:var(--accent); }
+  #main { min-height:0; display:grid; grid-template-columns:330px 1fr; }
+  #sidebar {
+    overflow:auto;
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    padding:12px;
+  }
+  #map { position:relative; width:100%; height:100%; min-height:350px; background:#0b0d10; overflow:hidden; }
+  .card {
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:11px;
+    margin-bottom:10px;
+  }
+  .card h2 { font-size:14px; margin:0 0 8px; }
+  .small { font-size:12px; color:var(--muted); line-height:1.35; }
+  .status { font-size:13px; line-height:1.45; }
+  .loadingDot {
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:currentColor; margin-right:6px; animation:pulse 1s infinite alternate;
+  }
+  @keyframes pulse { from { opacity:.25; } to { opacity:1; } }
+
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .stat {
+    background:#151b22;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px;
+  }
+  .stat .n { font-size:18px; font-weight:700; }
+  .stat .l { font-size:11px; color:var(--muted); }
+  .progress {
+    height:10px; background:#11161c; border:1px solid var(--border);
+    border-radius:99px; overflow:hidden; margin-top:7px;
+  }
+  #progressBar { height:100%; width:0%; background:var(--good); }
+  .row { display:flex; gap:7px; flex-wrap:wrap; }
+  .row button { flex:1 1 auto; }
+  code { color:#c8e6ff; }
+  .leaflet-control-layers, .leaflet-bar a { color:#222; }
+  .route-label {
+    background:#10151c;
+    color:white;
+    border:1px solid #536170;
+    border-radius:6px;
+    padding:3px 6px;
+    box-shadow:none;
+  }
+  @media (max-width:760px) {
+    #main { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
+    #sidebar { border-right:0; border-bottom:1px solid var(--border); max-height:43vh; }
+    #map { min-height:57vh; }
+    header h1 { width:100%; }
+  }
+
+  .route-checkpoint {background:#10151c;color:#fff;border:2px solid #fff;border-radius:50%;width:28px!important;height:28px!important;line-height:24px;text-align:center;font-size:12px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+  .route-start {background:#1f7a45;color:#fff;border:2px solid #fff;border-radius:14px;padding:3px 7px;font-size:12px;font-weight:700;white-space:nowrap}
+  .route-finish {background:#8d3434;color:#fff;border:2px solid #fff;border-radius:14px;padding:3px 7px;font-size:12px;font-weight:700;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>Patrol Route — Deerfield Prototype v0.7 Hosted</h1>
+  <button id="loadRoads" class="primary">1. Load Roads</button>
+  <button id="buildRoute" class="good" disabled>2. Build Coverage Route</button>
+  <button id="reverseRoute" disabled>Reverse</button>
+  <button id="locateStart">Choose Start on Map</button>
+  <label class="toggle"><input id="includeService" type="checkbox"> include service roads</label>
+</header>
+
+<div id="main">
+<aside id="sidebar">
+  
+<div class="card">
+  <h2>Hosted mode</h2>
+  <div class="small">
+    This build is intended to run from HTTPS. This HTTPS build loads Deerfield directly from OpenStreetMap's standard map API. A separate road server is used only as a backup.
+  </div>
+</div>
+
+  <div class="card">
+    <h2>Community snapshot</h2>
+    <div class="small">
+      A tighter Deerfield starter boundary is already on the map. It excludes the school property and streets north of Powell Road. Edit or replace it with the map tools if needed.
+      The road query is intentionally limited to residential-type streets.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Route status</h2>
+    <div id="status" class="status">Ready. Adjust the boundary if needed, then load roads.</div>
+  </div>
+
+  <div class="card">
+    <h2>Efficiency</h2>
+    <div class="stats">
+      <div class="stat"><div class="n" id="uniqueMiles">—</div><div class="l">unique road miles</div></div>
+      <div class="stat"><div class="n" id="routeMiles">—</div><div class="l">total route miles</div></div>
+      <div class="stat"><div class="n" id="repeatMiles">—</div><div class="l">repeated miles</div></div>
+      <div class="stat"><div class="n" id="efficiency">—</div><div class="l">coverage efficiency</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Live coverage</h2>
+    <div><b id="coveragePct">0%</b> complete</div>
+    <div class="progress"><div id="progressBar"></div></div>
+    <div class="row" style="margin-top:9px">
+      <button id="gpsBtn" disabled>Start GPS</button>
+      <button id="markNearest" disabled>Mark Nearest</button>
+      <button id="simulate" disabled>Simulate</button>
+    </div>
+    <div class="small" style="margin-top:8px">
+      GPS works when the page is served from HTTPS (or localhost). The simulation button lets us test coverage from a desktop.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Snapshot</h2>
+    <div class="row">
+      <button id="saveSnapshot">Save locally</button>
+      <button id="loadSnapshot">Reload saved</button>
+    </div>
+    <div class="small" style="margin-top:8px">
+      Saves the boundary, downloaded road graph and generated route to this browser. This is our first step toward offline patrol use.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Prototype rules</h2>
+    <div class="small">
+      • Cover every residential road segment.<br>
+      • Start where you choose and finish wherever minimizes repeated pavement.<br>
+      • Cul-de-sac backtracking is accepted when unavoidable.<br>
+      • No violator, complaint, or open-case data is used.<br>
+      • Uses an open Chinese-Postman-style approximation with a flexible finish; exact matching can replace the greedy pairing after field validation.
+    </div>
+  </div>
+</aside>
+<div id="map"></div>
+</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+<script>
+(() => {
+'use strict';
+
+const CENTER = [28.488171, -82.469308]; // Moondance Circle reference point in Deerfield Estates
+const map = L.map('map', {zoomControl:true}).setView(CENTER, 16);
+
+// Android content:// and mobile viewport changes can size the map before layout settles.
+// Force Leaflet to recalculate once the page has rendered and after future resizes.
+function refreshMapSize() {
+  setTimeout(() => map.invalidateSize({pan:false, animate:false}), 50);
+  setTimeout(() => map.invalidateSize({pan:false, animate:false}), 300);
+}
+window.addEventListener('load', refreshMapSize);
+window.addEventListener('resize', refreshMapSize);
+window.addEventListener('orientationchange', refreshMapSize);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', refreshMapSize);
+}
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 20,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const drawn = new L.FeatureGroup().addTo(map);
+const roadLayer = new L.FeatureGroup().addTo(map);
+const routeLayer = new L.FeatureGroup().addTo(map);
+const completedLayer = new L.FeatureGroup().addTo(map);
+const miscLayer = new L.FeatureGroup().addTo(map);
+
+map.addControl(new L.Control.Draw({
+  edit: { featureGroup: drawn, remove:true },
+  draw: {
+    polygon: { allowIntersection:false, showArea:true },
+    rectangle:true,
+    circle:false, circlemarker:false, marker:false, polyline:false
+  }
+}));
+
+// Approximate starter box only; user can edit it.
+// Tighter starter outline for the Deerfield residential street cluster.
+// It intentionally excludes the school property to the east and streets north of Powell Road.
+// This remains editable and will later be replaced by the official subdivision/plat geometry.
+const starterCoords = [
+  [28.49120,-82.47485],
+  [28.49120,-82.46615],
+  [28.49055,-82.46545],
+  [28.48195,-82.46545],
+  [28.48175,-82.46625],
+  [28.48175,-82.47480]
+];
+const starter = L.polygon(starterCoords, {
+  weight:2, dashArray:'7 5', fillOpacity:0.05
+}).addTo(drawn);
+map.fitBounds(starter.getBounds(), {padding:[20,20]});
+refreshMapSize();
+
+map.on(L.Draw.Event.CREATED, e => {
+  drawn.clearLayers();
+  drawn.addLayer(e.layer);
+  clearRoadsAndRoute();
+  setStatus('Boundary changed. Load roads again.');
+});
+map.on(L.Draw.Event.EDITED, () => {
+  clearRoadsAndRoute();
+  setStatus('Boundary changed. Load roads again.');
+});
+map.on(L.Draw.Event.DELETED, () => {
+  clearRoadsAndRoute();
+  setStatus('Draw a Deerfield boundary, then load roads.');
+});
+
+let nodes = new Map();       // id => {id,lat,lon}
+let edges = [];              // unique OSM consecutive-node road segments
+let graph = new Map();       // node => [{to,edgeIndex,w}]
+let routeNodeIds = [];
+let routeCoords = [];
+let routePolyline = null;
+let chosenStart = null;
+let chooseStartMode = false;
+let gpsWatch = null;
+let positionMarker = null;
+let startMarker = null;
+let simulatedIndex = 0;
+let covered = new Set();
+
+const $ = id => document.getElementById(id);
+function setStatus(s){ $('status').textContent = s; }
+function setStatusHtml(s){ $('status').innerHTML = s; }
+
+function activeBoundary() {
+  const layers = drawn.getLayers();
+  if (!layers.length) return null;
+  return layers[0];
+}
+
+function boundaryLatLngs() {
+  const layer = activeBoundary();
+  if (!layer) return [];
+  if (layer instanceof L.Rectangle) {
+    const b = layer.getBounds();
+    return [
+      [b.getSouth(), b.getWest()],
+      [b.getSouth(), b.getEast()],
+      [b.getNorth(), b.getEast()],
+      [b.getNorth(), b.getWest()]
+    ];
+  }
+  const ll = layer.getLatLngs();
+  const ring = Array.isArray(ll[0]) ? ll[0] : ll;
+  return ring.map(p => [p.lat,p.lng]);
+}
+
+function pointInPolygon(lat, lon, poly) {
+  let inside = false;
+  for (let i=0,j=poly.length-1;i<poly.length;j=i++) {
+    const yi=poly[i][0], xi=poly[i][1];
+    const yj=poly[j][0], xj=poly[j][1];
+    const intersect = ((yi>lat)!==(yj>lat)) &&
+      (lon < (xj-xi)*(lat-yi)/((yj-yi)||1e-12)+xi);
+    if (intersect) inside=!inside;
+  }
+  return inside;
+}
+
+function haversine(a,b) {
+  const R=6371000, rad=Math.PI/180;
+  const dLat=(b.lat-a.lat)*rad, dLon=(b.lon-a.lon)*rad;
+  const s=Math.sin(dLat/2)**2 + Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+function miles(m){ return m/1609.344; }
+
+function clearRoadsAndRoute() {
+  nodes.clear(); edges=[]; graph.clear(); routeNodeIds=[]; routeCoords=[];
+  roadLayer.clearLayers(); routeLayer.clearLayers(); completedLayer.clearLayers();
+  covered.clear(); updateCoverage();
+  $('buildRoute').disabled=true; $('reverseRoute').disabled=true;
+  $('gpsBtn').disabled=true; $('markNearest').disabled=true; $('simulate').disabled=true;
+  setStats();
+}
+
+function overpassPolygon(poly) {
+  return poly.map(([lat,lon]) => `${lat.toFixed(6)} ${lon.toFixed(6)}`).join(' ');
+}
+function boundaryBBox(poly) {
+  const lats=poly.map(p=>p[0]), lons=poly.map(p=>p[1]);
+  return {
+    south: Math.min(...lats),
+    west: Math.min(...lons),
+    north: Math.max(...lats),
+    east: Math.max(...lons)
+  };
+}
+
+
+function parseOsmMapXml(xmlText, poly, includeService=false) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  const parserErr = doc.querySelector('parsererror');
+  if(parserErr) throw new Error('OpenStreetMap returned invalid XML.');
+
+  const nodeMap = new Map();
+  doc.querySelectorAll('node').forEach(n => {
+    const id = Number(n.getAttribute('id'));
+    const lat = Number(n.getAttribute('lat'));
+    const lon = Number(n.getAttribute('lon'));
+    if(Number.isFinite(id) && Number.isFinite(lat) && Number.isFinite(lon)) {
+      nodeMap.set(id,{id,lat,lon});
+    }
+  });
+
+  const allowed = new Set(['residential','living_street','unclassified']);
+  if(includeService) allowed.add('service');
+
+  const foundEdges = [];
+  let ei=0;
+  doc.querySelectorAll('way').forEach(w => {
+    const tags = {};
+    w.querySelectorAll(':scope > tag').forEach(t => tags[t.getAttribute('k')] = t.getAttribute('v'));
+    if(!allowed.has(tags.highway)) return;
+
+    const ids=[...w.querySelectorAll(':scope > nd')].map(nd=>Number(nd.getAttribute('ref'))).filter(Number.isFinite);
+    for(let i=0;i<ids.length-1;i++){
+      const a=nodeMap.get(ids[i]), b=nodeMap.get(ids[i+1]);
+      if(!a||!b) continue;
+      const midLat=(a.lat+b.lat)/2, midLon=(a.lon+b.lon)/2;
+      if(!pointInPolygon(midLat,midLon,poly)) continue;
+      const len=haversine(a,b);
+      if(len<1) continue;
+      foundEdges.push({
+        id:ei++, a:a.id,b:b.id,w:len,
+        name:tags.name||'(unnamed road)',
+        highway:tags.highway||''
+      });
+    }
+  });
+
+  const used = new Set(foundEdges.flatMap(e=>[e.a,e.b]));
+  const filteredNodes = new Map([...nodeMap].filter(([id])=>used.has(id)));
+  return {nodes:filteredNodes, edges:foundEdges};
+}
+
+async function loadRoads() {
+  const poly=boundaryLatLngs();
+  if(poly.length<3){ setStatus('Draw a community boundary first.'); return; }
+
+  nodes.clear(); edges=[]; graph.clear(); routeNodeIds=[]; routeCoords=[];
+  roadLayer.clearLayers(); routeLayer.clearLayers(); completedLayer.clearLayers();
+  covered.clear(); updateCoverage();
+  $('buildRoute').disabled=true; $('reverseRoute').disabled=true;
+  $('gpsBtn').disabled=true; $('markNearest').disabled=true; $('simulate').disabled=true;
+  setStats();
+  showChosenStart();
+
+  $('loadRoads').disabled=true;
+  $('loadRoads').textContent='Loading…';
+
+  const bb=boundaryBBox(poly);
+  const includeService=$('includeService').checked;
+
+  async function timedFetch(url, options={}, ms=30000) {
+    const controller=new AbortController();
+    const id=setTimeout(()=>controller.abort(),ms);
+    try {
+      return await fetch(url,{...options,signal:controller.signal,cache:'no-store'});
+    } finally {
+      clearTimeout(id);
+    }
+  }
+
+  let primaryError=null;
+
+  // PRIMARY: standard OSM map API. This is a very small bbox and avoids Overpass entirely.
+  try {
+    setStatusHtml('<span class="loadingDot"></span>Loading Deerfield directly from OpenStreetMap…');
+    const bbox = [
+      bb.west.toFixed(6), bb.south.toFixed(6),
+      bb.east.toFixed(6), bb.north.toFixed(6)
+    ].join(',');
+    const url='https://api.openstreetmap.org/api/0.6/map?bbox='+bbox;
+    const r=await timedFetch(url,{method:'GET',mode:'cors'},30000);
+    if(!r.ok) throw new Error(`OpenStreetMap HTTP ${r.status}`);
+    const xml=await r.text();
+    const parsed=parseOsmMapXml(xml,poly,includeService);
+    nodes=parsed.nodes;
+    edges=parsed.edges;
+  } catch(e) {
+    primaryError=e;
+  }
+
+  // FALLBACK: Overpass, only if the core map API fails or returns no usable roads.
+  if(!edges.length){
+    setStatusHtml('<span class="loadingDot"></span>Direct OpenStreetMap load did not finish. Trying backup road server…');
+    try {
+      const service = includeService ? '|service' : '';
+      const q = `[out:json][timeout:35];
+        way["highway"~"^(residential|living_street|unclassified${service})$"]
+          (${bb.south.toFixed(6)},${bb.west.toFixed(6)},${bb.north.toFixed(6)},${bb.east.toFixed(6)});
+        (._;>;);
+        out body;`;
+      const ep='https://overpass.kumi.systems/api/interpreter';
+      const r=await timedFetch(ep,{
+        method:'POST',
+        body:'data='+encodeURIComponent(q),
+        mode:'cors',
+        headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}
+      },35000);
+      if(!r.ok) throw new Error(`Backup road server HTTP ${r.status}`);
+      const data=await r.json();
+
+      const allNodes=new Map();
+      for(const n of data.elements.filter(x=>x.type==='node')){
+        allNodes.set(n.id,{id:n.id,lat:n.lat,lon:n.lon});
+      }
+      let ei=0;
+      const found=[];
+      for(const w of data.elements.filter(x=>x.type==='way')){
+        for(let i=0;i<w.nodes.length-1;i++){
+          const a=allNodes.get(w.nodes[i]), b=allNodes.get(w.nodes[i+1]);
+          if(!a||!b) continue;
+          const midLat=(a.lat+b.lat)/2, midLon=(a.lon+b.lon)/2;
+          if(!pointInPolygon(midLat,midLon,poly)) continue;
+          const len=haversine(a,b);
+          if(len<1) continue;
+          found.push({
+            id:ei++,a:a.id,b:b.id,w:len,
+            name:(w.tags&&w.tags.name)||'(unnamed road)',
+            highway:(w.tags&&w.tags.highway)||''
+          });
+        }
+      }
+      edges=found;
+      const used=new Set(edges.flatMap(e=>[e.a,e.b]));
+      nodes=new Map([...allNodes].filter(([id])=>used.has(id)));
+    } catch(e2) {
+      $('loadRoads').disabled=false;
+      $('loadRoads').textContent='1. Load Roads';
+      const p = primaryError?.name==='AbortError' ? 'Direct OpenStreetMap request timed out.' : (primaryError?.message||'Direct OpenStreetMap request failed.');
+      const f = e2?.name==='AbortError' ? 'Backup road server timed out.' : (e2?.message||'Backup road server failed.');
+      setStatus(`Road download failed. ${p} ${f} Your selected start is still saved.`);
+      showChosenStart();
+      return;
+    }
+  }
+
+  $('loadRoads').disabled=false;
+  $('loadRoads').textContent='1. Load Roads';
+
+  rebuildGraph();
+  keepLargestConnectedComponent();
+  drawRoads();
+  showChosenStart();
+
+  const names=[...new Set(edges.map(e=>e.name).filter(n=>n!=='(unnamed road)'))].sort();
+  if(!edges.length){
+    setStatus('The road source responded, but no matching residential roads were found inside the boundary.');
+    return;
+  }
+
+  setStatus(`Loaded ${edges.length} road segments across ${names.length} named streets. ${chosenStart ? 'Your selected start is pinned.' : 'Choose a start now or use the default.'}`);
+  $('buildRoute').disabled=false;
+  setStats();
+}
+
+function rebuildGraph(){
+  graph=new Map();
+  const add=(u,v,idx,w)=>{
+    if(!graph.has(u)) graph.set(u,[]);
+    graph.get(u).push({to:v,edgeIndex:idx,w});
+  };
+  edges.forEach((e,idx)=>{ e.id=idx; add(e.a,e.b,idx,e.w); add(e.b,e.a,idx,e.w); });
+}
+
+function keepLargestConnectedComponent(){
+  const seen=new Set(); let best=[];
+  for(const start of graph.keys()){
+    if(seen.has(start)) continue;
+    const stack=[start], comp=[]; seen.add(start);
+    while(stack.length){
+      const u=stack.pop(); comp.push(u);
+      for(const x of (graph.get(u)||[])){
+        if(!seen.has(x.to)){seen.add(x.to);stack.push(x.to);}
+      }
+    }
+    if(comp.length>best.length) best=comp;
+  }
+  const keep=new Set(best);
+  edges=edges.filter(e=>keep.has(e.a)&&keep.has(e.b));
+  const used=new Set(edges.flatMap(e=>[e.a,e.b]));
+  nodes=new Map([...nodes].filter(([id])=>used.has(id)));
+  rebuildGraph();
+}
+
+function drawRoads(){
+  roadLayer.clearLayers();
+  edges.forEach((e,idx)=>{
+    const a=nodes.get(e.a),b=nodes.get(e.b);
+    const line=L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{
+      weight:5, opacity:.65
+    }).bindTooltip(e.name);
+    line._edgeIndex=idx;
+    line.addTo(roadLayer);
+  });
+}
+
+function degreesWithDup(dup){
+  const d=new Map();
+  edges.forEach((e,i)=>{
+    const mult=1+(dup.get(i)||0);
+    d.set(e.a,(d.get(e.a)||0)+mult);
+    d.set(e.b,(d.get(e.b)||0)+mult);
+  });
+  return d;
+}
+
+function dijkstra(start, target){
+  const dist=new Map([[start,0]]), prev=new Map(), used=new Set();
+  while(true){
+    let u=null, best=Infinity;
+    for(const [n,d] of dist) if(!used.has(n)&&d<best){best=d;u=n;}
+    if(u===null) return null;
+    if(u===target) break;
+    used.add(u);
+    for(const x of (graph.get(u)||[])){
+      const nd=best+x.w;
+      if(nd<(dist.get(x.to)??Infinity)){
+        dist.set(x.to,nd);
+        prev.set(x.to,{node:u,edgeIndex:x.edgeIndex});
+      }
+    }
+  }
+  const edgePath=[], nodePath=[target];
+  let cur=target;
+  while(cur!==start){
+    const p=prev.get(cur); if(!p) return null;
+    edgePath.push(p.edgeIndex); cur=p.node; nodePath.push(cur);
+  }
+  edgePath.reverse(); nodePath.reverse();
+  return {distance:dist.get(target),edges:edgePath,nodes:nodePath};
+}
+
+function nearestNode(lat,lon){
+  let best=null,bd=Infinity;
+  for(const [id,n] of nodes){
+    const d=haversine({lat,lon},n);
+    if(d<bd){bd=d;best=id;}
+  }
+  return best;
+}
+
+function pairOddVerticesGreedy(odds){
+  const remaining=[...odds], dup=new Map();
+  let added=0;
+  while(remaining.length>=2){
+    const u=remaining.shift();
+    let bestJ=-1,bestPath=null;
+    for(let j=0;j<remaining.length;j++){
+      const p=dijkstra(u,remaining[j]);
+      if(p && (!bestPath || p.distance<bestPath.distance)){bestPath=p;bestJ=j;}
+    }
+    if(bestJ<0) break;
+    remaining.splice(bestJ,1);
+    for(const ei of bestPath.edges) dup.set(ei,(dup.get(ei)||0)+1);
+    added+=bestPath.distance;
+  }
+  return {dup,added};
+}
+
+function hierholzer(start, dup){
+  const adj=new Map();
+  let copyId=0;
+  const add=(u,v,edgeIndex)=>{
+    if(!adj.has(u))adj.set(u,[]);
+    adj.get(u).push({to:v,edgeIndex,copyId});
+  };
+  edges.forEach((e,i)=>{
+    const mult=1+(dup.get(i)||0);
+    for(let k=0;k<mult;k++){
+      const cid=copyId++;
+      if(!adj.has(e.a))adj.set(e.a,[]);
+      if(!adj.has(e.b))adj.set(e.b,[]);
+      adj.get(e.a).push({to:e.b,edgeIndex:i,copyId:cid});
+      adj.get(e.b).push({to:e.a,edgeIndex:i,copyId:cid});
+    }
+  });
+  const used=new Set(), stack=[start], circuit=[];
+  while(stack.length){
+    const v=stack[stack.length-1], list=adj.get(v)||[];
+    let x=null;
+    while(list.length && !x){
+      const c=list.pop();
+      if(!used.has(c.copyId)) x=c;
+    }
+    if(x){ used.add(x.copyId); stack.push(x.to); }
+    else circuit.push(stack.pop());
+  }
+  return circuit.reverse();
+}
+
+function buildRoute(){
+  if(!edges.length) return;
+
+  const baseDegree=new Map();
+  edges.forEach(e=>{
+    baseDegree.set(e.a,(baseDegree.get(e.a)||0)+1);
+    baseDegree.set(e.b,(baseDegree.get(e.b)||0)+1);
+  });
+  const odds=[...baseDegree].filter(([,d])=>d%2===1).map(([n])=>n);
+
+  let start=chosenStart ? nearestNode(chosenStart.lat,chosenStart.lon) : null;
+  if(start===null) start=edges[0].a;
+
+  const candidateEnds=odds.filter(n=>n!==start);
+  const pool=candidateEnds.length?candidateEnds:[start];
+  let best=null;
+
+  for(const end of pool){
+    const parity=new Set(odds);
+    if(parity.has(start)) parity.delete(start); else parity.add(start);
+    if(end!==start){
+      if(parity.has(end)) parity.delete(end); else parity.add(end);
+    }
+    const pairSet=[...parity];
+    if(pairSet.length%2) continue;
+    const attempt=pairOddVerticesGreedy(pairSet);
+    if(!best || attempt.added<best.added) best={end,dup:attempt.dup,added:attempt.added};
+  }
+
+  if(!best){
+    const attempt=pairOddVerticesGreedy(odds);
+    best={end:start,dup:attempt.dup,added:attempt.added};
+  }
+
+  routeNodeIds=hierholzer(start,best.dup);
+  routeCoords=routeNodeIds.map(id=>[nodes.get(id).lat,nodes.get(id).lon]);
+
+  routeLayer.clearLayers();
+  routePolyline=L.polyline(routeCoords,{weight:7,opacity:.86}).addTo(routeLayer);
+
+  if(routeCoords.length){
+    const startIcon=L.divIcon({className:'route-start',html:'START',iconSize:[52,26],iconAnchor:[26,13]});
+    L.marker(routeCoords[0],{icon:startIcon,interactive:false}).addTo(routeLayer);
+    const finishIcon=L.divIcon({className:'route-finish',html:'FINISH',iconSize:[58,26],iconAnchor:[29,13]});
+    L.marker(routeCoords[routeCoords.length-1],{icon:finishIcon,interactive:false}).addTo(routeLayer);
+
+    const checkpoints=Math.min(10,Math.max(4,Math.floor(routeCoords.length/18)));
+    for(let i=1;i<checkpoints;i++){
+      const idx=Math.round(i*(routeCoords.length-1)/checkpoints);
+      const icon=L.divIcon({className:'route-checkpoint',html:String(i),iconSize:[28,28],iconAnchor:[14,14]});
+      L.marker(routeCoords[idx],{icon,interactive:false}).addTo(routeLayer);
+    }
+  }
+
+  routeLayer.bringToFront();
+
+  const unique=edges.reduce((s,e)=>s+e.w,0);
+  const total=unique+best.added;
+  setStats(unique,total,best.added);
+
+  const finishNode=nodes.get(routeNodeIds[routeNodeIds.length-1]);
+  let finishRoad='the optimal endpoint';
+  if(finishNode){
+    const incident=(graph.get(finishNode.id)||[]).map(x=>edges[x.edgeIndex]?.name).filter(Boolean);
+    finishRoad=incident.find(n=>n!=='(unnamed road)')||finishRoad;
+  }
+
+  setStatus(`Open coverage route built. Repeated travel is ${miles(best.added).toFixed(2)} mi. Route finishes near ${finishRoad}.`);
+  $('reverseRoute').disabled=false;
+  $('gpsBtn').disabled=false;
+  $('markNearest').disabled=false;
+  $('simulate').disabled=false;
+  covered.clear(); updateCoverage();
+  simulatedIndex=0;
+}
+
+function setStats(unique=null,total=null,repeat=null){
+  if(unique===null && edges.length) unique=edges.reduce((s,e)=>s+e.w,0);
+  if(unique===null){
+    $('uniqueMiles').textContent=$('routeMiles').textContent=$('repeatMiles').textContent=$('efficiency').textContent='—';
+    return;
+  }
+  if(total===null && routeCoords.length){
+    total=0;
+    for(let i=1;i<routeNodeIds.length;i++){
+      total+=haversine(nodes.get(routeNodeIds[i-1]),nodes.get(routeNodeIds[i]));
+    }
+    repeat=Math.max(0,total-unique);
+  }
+  $('uniqueMiles').textContent=miles(unique).toFixed(2);
+  $('routeMiles').textContent=total==null?'—':miles(total).toFixed(2);
+  $('repeatMiles').textContent=repeat==null?'—':miles(repeat).toFixed(2);
+  $('efficiency').textContent=total?`${(100*unique/total).toFixed(1)}%`:'—';
+}
+
+function reverseRoute(){
+  routeNodeIds.reverse();
+  routeCoords.reverse();
+  routeLayer.clearLayers();
+  routePolyline=L.polyline(routeCoords,{weight:7,opacity:.86}).addTo(routeLayer);
+
+  if(routeCoords.length){
+    const startIcon=L.divIcon({className:'route-start',html:'START',iconSize:[52,26],iconAnchor:[26,13]});
+    L.marker(routeCoords[0],{icon:startIcon,interactive:false}).addTo(routeLayer);
+    const finishIcon=L.divIcon({className:'route-finish',html:'FINISH',iconSize:[58,26],iconAnchor:[29,13]});
+    L.marker(routeCoords[routeCoords.length-1],{icon:finishIcon,interactive:false}).addTo(routeLayer);
+
+    const checkpoints=Math.min(10,Math.max(4,Math.floor(routeCoords.length/18)));
+    for(let i=1;i<checkpoints;i++){
+      const idx=Math.round(i*(routeCoords.length-1)/checkpoints);
+      const icon=L.divIcon({className:'route-checkpoint',html:String(i),iconSize:[28,28],iconAnchor:[14,14]});
+      L.marker(routeCoords[idx],{icon,interactive:false}).addTo(routeLayer);
+    }
+  }
+
+  setStatus('Route direction reversed. Mileage is unchanged; START and FINISH have been swapped.');
+  simulatedIndex=0;
+}
+
+function distancePointToSegmentMeters(p,a,b){
+  const lat0=p.lat*Math.PI/180;
+  const kx=111320*Math.cos(lat0), ky=110540;
+  const px=p.lon*kx, py=p.lat*ky;
+  const ax=a.lon*kx, ay=a.lat*ky, bx=b.lon*kx, by=b.lat*ky;
+  const vx=bx-ax,vy=by-ay, wx=px-ax,wy=py-ay;
+  const c1=vx*wx+vy*wy, c2=vx*vx+vy*vy;
+  let t=c2?c1/c2:0; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(ax+t*vx),py-(ay+t*vy));
+}
+
+function markCoverageAt(lat,lon,threshold=24){
+  let changed=false;
+  edges.forEach((e,i)=>{
+    if(covered.has(i)) return;
+    const d=distancePointToSegmentMeters({lat,lon},nodes.get(e.a),nodes.get(e.b));
+    if(d<=threshold){covered.add(i);changed=true;}
+  });
+  if(changed) redrawCompleted();
+}
+
+function redrawCompleted(){
+  completedLayer.clearLayers();
+  for(const i of covered){
+    const e=edges[i],a=nodes.get(e.a),b=nodes.get(e.b);
+    L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{weight:7,opacity:.9}).addTo(completedLayer);
+  }
+  updateCoverage();
+}
+
+function updateCoverage(){
+  const pct=edges.length ? 100*covered.size/edges.length : 0;
+  $('coveragePct').textContent=`${pct.toFixed(0)}%`;
+  $('progressBar').style.width=`${pct}%`;
+}
+
+
+function showChosenStart() {
+  if(startMarker){ map.removeLayer(startMarker); startMarker=null; }
+  if(!chosenStart) return;
+  let lat=chosenStart.lat, lon=chosenStart.lon;
+  if(nodes.size){
+    const n=nearestNode(lat,lon);
+    if(n!==null){
+      const p=nodes.get(n);
+      lat=p.lat; lon=p.lon;
+    }
+  }
+  startMarker=L.marker([lat,lon]).bindTooltip('Selected patrol start');
+  startMarker.addTo(map);
+}
+
+function updatePosition(lat,lon){
+  if(!positionMarker) positionMarker=L.circleMarker([lat,lon],{radius:7,weight:3,fillOpacity:1}).addTo(miscLayer);
+  else positionMarker.setLatLng([lat,lon]);
+  markCoverageAt(lat,lon);
+}
+
+function toggleGps(){
+  if(gpsWatch!==null){
+    navigator.geolocation.clearWatch(gpsWatch); gpsWatch=null;
+    $('gpsBtn').textContent='Start GPS';
+    setStatus('GPS tracking stopped.');
+    return;
+  }
+  if(!navigator.geolocation){
+    setStatus('Geolocation is not available in this browser.');
+    return;
+  }
+  gpsWatch=navigator.geolocation.watchPosition(
+    p=>{
+      updatePosition(p.coords.latitude,p.coords.longitude);
+      setStatus(`GPS active • accuracy about ${Math.round(p.coords.accuracy)} m`);
+    },
+    e=>setStatus(`GPS error: ${e.message}. HTTPS/localhost is normally required.`),
+    {enableHighAccuracy:true,maximumAge:1500,timeout:12000}
+  );
+  $('gpsBtn').textContent='Stop GPS';
+}
+
+function markNearest(){
+  if(positionMarker){
+    const p=positionMarker.getLatLng();
+    markCoverageAt(p.lat,p.lng,45);
+    setStatus('Marked road segments nearest the current position.');
+  } else setStatus('No GPS/simulated position yet.');
+}
+
+function simulate(){
+  if(!routeCoords.length) return;
+  const p=routeCoords[simulatedIndex%routeCoords.length];
+  updatePosition(p[0],p[1]);
+  map.panTo(p,{animate:true,duration:.2});
+  simulatedIndex++;
+  setStatus(`Simulation: ${Math.min(simulatedIndex,routeCoords.length)} / ${routeCoords.length} route points`);
+}
+
+function saveSnapshot(){
+  const obj={
+    polygon:boundaryLatLngs(),
+    nodes:[...nodes.values()],
+    edges,
+    routeNodeIds,
+    chosenStart
+  };
+  localStorage.setItem('patrolRouteDeerfieldV1',JSON.stringify(obj));
+  setStatus('Deerfield snapshot saved in this browser.');
+}
+
+function loadSnapshot(){
+  const raw=localStorage.getItem('patrolRouteDeerfieldV1');
+  if(!raw){setStatus('No saved Deerfield snapshot found in this browser.');return;}
+  const o=JSON.parse(raw);
+  drawn.clearLayers();
+  if(o.polygon?.length) L.polygon(o.polygon,{weight:2,dashArray:'7 5',fillOpacity:.05}).addTo(drawn);
+  nodes=new Map((o.nodes||[]).map(n=>[n.id,n]));
+  edges=o.edges||[];
+  routeNodeIds=o.routeNodeIds||[];
+  chosenStart=o.chosenStart||null;
+  rebuildGraph(); drawRoads();
+  showChosenStart();
+  routeCoords=routeNodeIds.map(id=>nodes.has(id)?[nodes.get(id).lat,nodes.get(id).lon]:null).filter(Boolean);
+  routeLayer.clearLayers();
+  if(routeCoords.length){
+    routePolyline=L.polyline(routeCoords,{weight:7,opacity:.88}).addTo(routeLayer);
+    $('reverseRoute').disabled=false; $('gpsBtn').disabled=false; $('markNearest').disabled=false; $('simulate').disabled=false;
+  }
+  $('buildRoute').disabled=!edges.length;
+  setStats();
+  if(drawn.getLayers().length) map.fitBounds(drawn.getBounds(),{padding:[20,20]});
+  setStatus(`Reloaded saved snapshot with ${edges.length} road segments.`);
+}
+
+map.on('click', e=>{
+  if(!chooseStartMode) return;
+  chosenStart={lat:e.latlng.lat,lon:e.latlng.lng};
+  chooseStartMode=false;
+  $('locateStart').textContent='Choose Start on Map';
+  showChosenStart();
+  if(nodes.size){
+    setStatus('Starting point selected and snapped to the nearest loaded road. Build the route to use it.');
+  } else {
+    setStatus('Starting point selected. It will be preserved when you load Deerfield roads.');
+  }
+});
+
+$('loadRoads').onclick=loadRoads;
+$('buildRoute').onclick=buildRoute;
+$('reverseRoute').onclick=reverseRoute;
+$('gpsBtn').onclick=toggleGps;
+$('markNearest').onclick=markNearest;
+$('simulate').onclick=simulate;
+$('saveSnapshot').onclick=saveSnapshot;
+$('loadSnapshot').onclick=loadSnapshot;
+$('locateStart').onclick=()=>{
+  chooseStartMode=!chooseStartMode;
+  $('locateStart').textContent=chooseStartMode?'Tap Map for Start':'Choose Start on Map';
+  setStatus(chooseStartMode?'Tap the map where you want the patrol route to begin.':'Start selection cancelled.');
+};
+
+})();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  });
+}
+
+</script>
+</body>
+</html>
