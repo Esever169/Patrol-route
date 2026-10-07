@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#11151b">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Patrol Route Prototype v0.9.1 County GIS — Deerfield</title>
+<title>Patrol Route Prototype v0.9.2 County GIS — Deerfield</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIINfQ3yn5RzYExw4DZsO8I7YwE8GQh6E6Q=" crossorigin="">
@@ -348,7 +348,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <body>
 <div id="app">
 <header>
-  <h1>Patrol Route — Deerfield Prototype v0.9.1 County GIS</h1>
+  <h1>Patrol Route — Deerfield Prototype v0.9.2 County GIS</h1>
   <button id="loadRoads" class="primary">1. Load Roads</button>
   <button id="buildRoute" class="good" disabled>2. Build Coverage Route</button>
   <button id="reverseRoute" disabled>Reverse</button>
@@ -362,7 +362,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="card">
   <h2>Hosted mode</h2>
   <div class="small">
-    This build is intended to run from HTTPS. v0.9.1 uses Hernando County Central GIS's authoritative Streets layer as the primary road source. OpenStreetMap remains only the visual basemap and emergency fallback.
+    This build is intended to run from HTTPS. v0.9.2 uses Hernando County Central GIS Streets and nodes the road geometry at true intersections before route optimization.
   </div>
 </div>
 
@@ -394,6 +394,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="stats">
       <div class="stat"><div class="n" id="componentCount">—</div><div class="l">connected components</div></div>
       <div class="stat"><div class="n" id="gapCount">—</div><div class="l">auto-bridged gaps</div></div>
+      <div class="stat"><div class="n" id="intersectionCount">—</div><div class="l">inserted intersections</div></div>
     </div>
     <div class="small" id="graphHealthText" style="margin-top:8px">Load roads to analyze map connectivity.</div><div class="small" id="roadSourceText" style="margin-top:6px"><b>Source:</b> not loaded</div>
   </div>
@@ -532,6 +533,7 @@ let syntheticEdges = new Set();
 let disconnectedComponents = 0;
 let autoBridgedGaps = 0;
 let activeRoadSource = 'none';
+let insertedIntersections = 0;
 
 const $ = id => document.getElementById(id);
 function setStatus(s){ $('status').textContent = s; }
@@ -790,7 +792,7 @@ async function loadRoads() {
 
   nodes.clear(); edges=[]; graph.clear(); routeNodeIds=[]; routeCoords=[];
   roadLayer.clearLayers(); routeLayer.clearLayers(); completedLayer.clearLayers();
-  covered.clear(); syntheticEdges.clear(); disconnectedComponents=0; autoBridgedGaps=0;
+  covered.clear(); syntheticEdges.clear(); disconnectedComponents=0; autoBridgedGaps=0; insertedIntersections=0;
   updateCoverage(); updateGraphHealth(); setRoadSource('not loaded');
   $('buildRoute').disabled=true; $('reverseRoute').disabled=true;
   $('gpsBtn').disabled=true; $('markNearest').disabled=true; $('simulate').disabled=true;
@@ -868,11 +870,15 @@ async function loadRoads() {
   $('loadRoads').disabled=false;
   $('loadRoads').textContent='1. Load Roads';
 
+  if(activeRoadSource.startsWith('Hernando')){
+    setStatusHtml('<span class="loadingDot"></span>Noding county centerlines at intersections…');
+    nodeCountyIntersections();
+  }
+
   rebuildGraph();
 
-  // County data should already be topologically clean. Use a smaller repair
-  // tolerance than we used with OSM and retain everything if a gap remains.
-  connectObviousTinyGaps(activeRoadSource.startsWith('Hernando') ? 10 : 24);
+  // After proper intersection noding, only repair truly tiny residual endpoint gaps.
+  connectObviousTinyGaps(activeRoadSource.startsWith('Hernando') ? 6 : 24);
 
   drawRoads();
   updateGraphHealth();
@@ -887,10 +893,10 @@ async function loadRoads() {
 
   const comps=getComponents().length;
   if(comps===1){
-    setStatus(`Loaded ${edges.length} road segments across ${names.length} named streets from ${activeRoadSource}. Road graph is connected and ready to optimize.`);
+    setStatus(`Loaded ${edges.length} routed segments across ${names.length} named streets from ${activeRoadSource}. Inserted ${insertedIntersections} true intersection node${insertedIntersections===1?'':'s'}. Road graph is connected and ready to optimize.`);
     $('buildRoute').disabled=false;
   } else {
-    setStatus(`Loaded ${edges.length} road segments across ${names.length} named streets from ${activeRoadSource}. ${comps} road groups remain disconnected; all are shown and retained.`);
+    setStatus(`Loaded ${edges.length} routed segments across ${names.length} named streets from ${activeRoadSource}. Inserted ${insertedIntersections} true intersection node${insertedIntersections===1?'':'s'}. ${comps} road groups remain disconnected; all are shown and retained.`);
     $('buildRoute').disabled=true;
   }
   setStats();
@@ -920,10 +926,12 @@ function getComponents() {
 function updateGraphHealth() {
   const cc=document.getElementById('componentCount');
   const gc=document.getElementById('gapCount');
+  const ic=document.getElementById('intersectionCount');
   const txt=document.getElementById('graphHealthText');
 
   if(cc) cc.textContent = edges.length ? String(disconnectedComponents || getComponents().length) : '—';
   if(gc) gc.textContent = edges.length ? String(autoBridgedGaps) : '—';
+  if(ic) ic.textContent = edges.length ? String(insertedIntersections) : '—';
 
   if(!txt) return;
   if(!edges.length){
@@ -996,6 +1004,195 @@ function connectObviousTinyGaps(maxMeters=10) {
   autoBridgedGaps=bridges;
   disconnectedComponents=getComponents().length;
   updateGraphHealth();
+}
+
+
+function nodeCountyIntersections() {
+  if(!edges.length || !nodes.size) return;
+
+  // Work in a local meter projection. At neighborhood scale this is more than
+  // accurate enough for intersection topology and keeps the math simple.
+  let latSum=0, count=0;
+  for(const n of nodes.values()){ latSum+=n.lat; count++; }
+  const lat0=(count?latSum/count:28.5)*Math.PI/180;
+  const kx=111320*Math.cos(lat0);
+  const ky=110540;
+
+  const raw=edges.map((e,idx)=>{
+    const a=nodes.get(e.a), b=nodes.get(e.b);
+    return {
+      ...e,
+      _idx:idx,
+      ax:a.lon*kx, ay:a.lat*ky,
+      bx:b.lon*kx, by:b.lat*ky,
+      alat:a.lat, alon:a.lon, blat:b.lat, blon:b.lon
+    };
+  });
+
+  const splits=raw.map(()=>[
+    {t:0},
+    {t:1}
+  ]);
+
+  function cross(ax,ay,bx,by){ return ax*by-ay*bx; }
+
+  function properIntersection(s1,s2){
+    // Skip pairs already joined at an endpoint.
+    if(s1.a===s2.a || s1.a===s2.b || s1.b===s2.a || s1.b===s2.b) return null;
+
+    const rX=s1.bx-s1.ax, rY=s1.by-s1.ay;
+    const sX=s2.bx-s2.ax, sY=s2.by-s2.ay;
+    const denom=cross(rX,rY,sX,sY);
+    if(Math.abs(denom)<1e-9) return null;
+
+    const qpx=s2.ax-s1.ax, qpy=s2.ay-s1.ay;
+    const t=cross(qpx,qpy,sX,sY)/denom;
+    const u=cross(qpx,qpy,rX,rY)/denom;
+
+    // Interior intersection only. Existing endpoint snapping handles endpoint cases.
+    const eps=1e-6;
+    if(t<=eps || t>=1-eps || u<=eps || u>=1-eps) return null;
+
+    const x=s1.ax+t*rX, y=s1.ay+t*rY;
+    return {t,u,x,y,lat:y/ky,lon:x/kx};
+  }
+
+  let found=0;
+  for(let i=0;i<raw.length;i++){
+    const a=raw[i];
+    const minAx=Math.min(a.ax,a.bx), maxAx=Math.max(a.ax,a.bx);
+    const minAy=Math.min(a.ay,a.by), maxAy=Math.max(a.ay,a.by);
+
+    for(let j=i+1;j<raw.length;j++){
+      const b=raw[j];
+
+      // Fast bounding-box rejection.
+      if(maxAx < Math.min(b.ax,b.bx) || minAx > Math.max(b.ax,b.bx) ||
+         maxAy < Math.min(b.ay,b.by) || minAy > Math.max(b.ay,b.by)) continue;
+
+      const p=properIntersection(a,b);
+      if(!p) continue;
+
+      splits[i].push({t:p.t,lat:p.lat,lon:p.lon});
+      splits[j].push({t:p.u,lat:p.lat,lon:p.lon});
+      found++;
+    }
+  }
+
+  // Also repair T-junction topology where a road endpoint terminates very close
+  // to the middle of another county centerline without sharing a vertex.
+  const endpointTolerance=4.0; // meters
+  function pointToSegment(px,py,s){
+    const vx=s.bx-s.ax, vy=s.by-s.ay;
+    const wx=px-s.ax, wy=py-s.ay;
+    const vv=vx*vx+vy*vy;
+    let t=vv ? (wx*vx+wy*vy)/vv : 0;
+    t=Math.max(0,Math.min(1,t));
+    const x=s.ax+t*vx, y=s.ay+t*vy;
+    return {d:Math.hypot(px-x,py-y),t,x,y,lat:y/ky,lon:x/kx};
+  }
+
+  const seenEndpointJoins=new Set();
+  for(let i=0;i<raw.length;i++){
+    const s=raw[i];
+    const endpoints=[
+      {node:s.a,x:s.ax,y:s.ay,tSelf:0},
+      {node:s.b,x:s.bx,y:s.by,tSelf:1}
+    ];
+
+    for(const ep of endpoints){
+      for(let j=0;j<raw.length;j++){
+        if(i===j) continue;
+        const other=raw[j];
+        if(ep.node===other.a || ep.node===other.b) continue;
+
+        const hit=pointToSegment(ep.x,ep.y,other);
+        if(hit.t<=1e-5 || hit.t>=1-1e-5 || hit.d>endpointTolerance) continue;
+
+        const key=`${ep.node}|${Math.min(i,j)}|${Math.max(i,j)}`;
+        if(seenEndpointJoins.has(key)) continue;
+        seenEndpointJoins.add(key);
+
+        // Split the crossed road at the projection point and move the terminating
+        // road's endpoint to that same routing node during reconstruction.
+        splits[j].push({t:hit.t,lat:hit.lat,lon:hit.lon,forcedNode:ep.node});
+      }
+    }
+  }
+
+  // Build a fresh node set with a tighter 1.5 m snap now that intersections exist.
+  const newNodes=new Map();
+  const buckets=new Map();
+  let seq=1;
+
+  function bucketKeys(lat,lon){
+    const y=Math.floor(lat*10000), x=Math.floor(lon*10000), out=[];
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) out.push(`${y+dy}:${x+dx}`);
+    return out;
+  }
+
+  function getNode(lat,lon,preferredId=null){
+    let best=null,bestD=Infinity;
+    for(const key of bucketKeys(lat,lon)){
+      for(const id of (buckets.get(key)||[])){
+        const n=newNodes.get(id);
+        const d=haversine({lat,lon},n);
+        if(d<bestD){bestD=d;best=id;}
+      }
+    }
+    if(best!==null && bestD<=1.5) return best;
+
+    const id=preferredId && !newNodes.has(preferredId) ? preferredId : `n${seq++}`;
+    newNodes.set(id,{id,lat,lon});
+    const key=`${Math.floor(lat*10000)}:${Math.floor(lon*10000)}`;
+    if(!buckets.has(key)) buckets.set(key,[]);
+    buckets.get(key).push(id);
+    return id;
+  }
+
+  const newEdges=[];
+  let edgeId=0;
+
+  for(let i=0;i<raw.length;i++){
+    const s=raw[i];
+    const pts=splits[i];
+
+    // Add real coordinates for endpoints.
+    for(const p of pts){
+      if(p.t===0){ p.lat=s.alat; p.lon=s.alon; p.preferredId=s.a; }
+      if(p.t===1){ p.lat=s.blat; p.lon=s.blon; p.preferredId=s.b; }
+    }
+
+    pts.sort((a,b)=>a.t-b.t);
+
+    // De-duplicate split positions.
+    const uniq=[];
+    for(const p of pts){
+      if(!uniq.length || Math.abs(p.t-uniq[uniq.length-1].t)>1e-7) uniq.push(p);
+      else if(p.forcedNode) uniq[uniq.length-1].forcedNode=p.forcedNode;
+    }
+
+    for(let k=0;k<uniq.length-1;k++){
+      const p=uniq[k], q=uniq[k+1];
+      const aId=getNode(p.lat,p.lon,p.forcedNode||p.preferredId||null);
+      const bId=getNode(q.lat,q.lon,q.forcedNode||q.preferredId||null);
+      if(aId===bId) continue;
+
+      const a=newNodes.get(aId), b=newNodes.get(bId);
+      const w=haversine(a,b);
+      if(w<0.5) continue;
+
+      const copy={...s};
+      delete copy._idx; delete copy.ax; delete copy.ay; delete copy.bx; delete copy.by;
+      delete copy.alat; delete copy.alon; delete copy.blat; delete copy.blon;
+
+      newEdges.push({...copy,id:edgeId++,a:aId,b:bId,w});
+    }
+  }
+
+  nodes=newNodes;
+  edges=newEdges;
+  insertedIntersections=found;
 }
 
 function rebuildGraph(){
