@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#11151b">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Patrol Route Prototype v0.8 Hosted — Deerfield</title>
+<title>Patrol Route Prototype v0.8.1 Hosted — Deerfield</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIINfQ3yn5RzYExw4DZsO8I7YwE8GQh6E6Q=" crossorigin="">
@@ -348,7 +348,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <body>
 <div id="app">
 <header>
-  <h1>Patrol Route — Deerfield Prototype v0.8 Hosted</h1>
+  <h1>Patrol Route — Deerfield Prototype v0.8.1 Hosted</h1>
   <button id="loadRoads" class="primary">1. Load Roads</button>
   <button id="buildRoute" class="good" disabled>2. Build Coverage Route</button>
   <button id="reverseRoute" disabled>Reverse</button>
@@ -362,7 +362,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="card">
   <h2>Hosted mode</h2>
   <div class="small">
-    This build is intended to run from HTTPS. v0.8 keeps every residential road inside your editable boundary, repairs only tiny obvious map gaps, and reports any road groups that still remain disconnected.
+    This build is intended to run from HTTPS. v0.8.1 keeps every matching road inside your editable boundary, repairs only tiny obvious map gaps, reports remaining disconnected road groups, and improves duplicate-mile optimization.
   </div>
 </div>
 
@@ -427,10 +427,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <h2>Prototype rules</h2>
     <div class="small">
       • Cover every residential road segment.<br>
-      • Start where you choose and finish wherever minimizes repeated pavement.<br>
+      • Your drawn boundary is authoritative: every matching road inside it is retained.<br>
       • Cul-de-sac backtracking is accepted when unavoidable.<br>
       • No violator, complaint, or open-case data is used.<br>
-      • Uses an open Chinese-Postman-style approximation with a flexible finish; exact matching can replace the greedy pairing after field validation.
+      • Uses an open Chinese-Postman-style route with a flexible finish and pair-swap optimization to reduce duplicate mileage.
     </div>
   </div>
 </aside>
@@ -580,12 +580,13 @@ function haversine(a,b) {
 function miles(m){ return m/1609.344; }
 
 function clearRoadsAndRoute() {
-  nodes.clear(); edges=[]; graph.clear(); routeNodeIds=[]; routeCoords=[];
+  nodes.clear(); edges=[]; graph.clear(); routeNodeIds=[]; routeCoords=[]; syntheticEdges.clear(); disconnectedComponents=0; autoBridgedGaps=0;
   roadLayer.clearLayers(); routeLayer.clearLayers(); completedLayer.clearLayers();
   covered.clear(); updateCoverage();
   $('buildRoute').disabled=true; $('reverseRoute').disabled=true;
   $('gpsBtn').disabled=true; $('markNearest').disabled=true; $('simulate').disabled=true;
   setStats();
+  updateGraphHealth();
 }
 
 function overpassPolygon(poly) {
@@ -772,7 +773,90 @@ async function loadRoads() {
   setStats();
 }
 
-\nfunction getComponents() {\n  const seen=new Set(), comps=[];\n  for(const start of graph.keys()){\n    if(seen.has(start)) continue;\n    const stack=[start], comp=[]; seen.add(start);\n    while(stack.length){\n      const u=stack.pop(); comp.push(u);\n      for(const x of (graph.get(u)||[])) if(!seen.has(x.to)){seen.add(x.to);stack.push(x.to);}\n    }\n    comps.push(comp);\n  }\n  comps.sort((a,b)=>b.length-a.length);\n  return comps;\n}\n\nfunction updateGraphHealth(){\n  const comps=edges.length?getComponents():[];\n  disconnectedComponents=comps.length;\n  const cc=document.getElementById('componentCount'), gc=document.getElementById('gapCount'), txt=document.getElementById('graphHealthText');\n  if(cc) cc.textContent=edges.length?String(disconnectedComponents):'—';\n  if(gc) gc.textContent=edges.length?String(autoBridgedGaps):'—';\n  if(!txt) return;\n  if(!edges.length) txt.textContent='Load roads to analyze map connectivity.';\n  else if(disconnectedComponents===1 && autoBridgedGaps===0) txt.textContent='Road graph is fully connected; no gap repairs were needed.';\n  else if(disconnectedComponents===1) txt.textContent=`Connected after ${autoBridgedGaps} tiny map-gap repair${autoBridgedGaps===1?'':'s'}.`;\n  else txt.textContent=`${disconnectedComponents} road groups remain disconnected. No roads were discarded.`;\n}\n\nfunction endpointNodes(comp){\n  const out=[];\n  for(const id of comp) if((graph.get(id)||[]).length<=1) out.push(id);\n  return out.length?out:[...comp];\n}\n\nfunction connectObviousTinyGaps(maxMeters=24){\n  autoBridgedGaps=0;\n  while(true){\n    const comps=getComponents();\n    if(comps.length<=1) break;\n    let best=null;\n    for(let i=0;i<comps.length;i++){\n      const aNodes=endpointNodes(comps[i]);\n      for(let j=i+1;j<comps.length;j++){\n        const bNodes=endpointNodes(comps[j]);\n        for(const aId of aNodes){\n          const a=nodes.get(aId); if(!a) continue;\n          for(const bId of bNodes){\n            const b=nodes.get(bId); if(!b) continue;\n            const d=haversine(a,b);\n            if(d<=maxMeters && (!best||d<best.d)) best={aId,bId,d};\n          }\n        }\n      }\n    }\n    if(!best) break;\n    const idx=edges.length;\n    edges.push({id:idx,a:best.aId,b:best.bId,w:best.d,name:'(map-gap bridge)',highway:'synthetic'});\n    syntheticEdges.add(idx);\n    rebuildGraph(); autoBridgedGaps++;\n    if(autoBridgedGaps>20) break;\n  }\n  updateGraphHealth();\n}\n\nfunction rebuildGraph(){
+function getComponents() {
+  const seen=new Set(), comps=[];
+  for(const start of graph.keys()){
+    if(seen.has(start)) continue;
+    const stack=[start], comp=[];
+    seen.add(start);
+    while(stack.length){
+      const u=stack.pop();
+      comp.push(u);
+      for(const x of (graph.get(u)||[])){
+        if(!seen.has(x.to)){
+          seen.add(x.to);
+          stack.push(x.to);
+        }
+      }
+    }
+    comps.push(comp);
+  }
+  comps.sort((a,b)=>b.length-a.length);
+  return comps;
+}
+
+function updateGraphHealth() {
+  const comps=edges.length ? getComponents() : [];
+  disconnectedComponents=comps.length;
+  const cc=document.getElementById('componentCount');
+  const gc=document.getElementById('gapCount');
+  const txt=document.getElementById('graphHealthText');
+  if(cc) cc.textContent=edges.length ? String(disconnectedComponents) : '—';
+  if(gc) gc.textContent=edges.length ? String(autoBridgedGaps) : '—';
+  if(!txt) return;
+  if(!edges.length){
+    txt.textContent='Load roads to analyze map connectivity.';
+  } else if(disconnectedComponents===1 && autoBridgedGaps===0){
+    txt.textContent='Road graph is fully connected; no gap repairs were needed.';
+  } else if(disconnectedComponents===1){
+    txt.textContent=`Connected after ${autoBridgedGaps} tiny map-gap repair${autoBridgedGaps===1?'':'s'}.`;
+  } else {
+    txt.textContent=`${disconnectedComponents} road groups remain disconnected. No roads were discarded.`;
+  }
+}
+
+function endpointNodes(comp) {
+  const out=[];
+  for(const id of comp){
+    if((graph.get(id)||[]).length<=1) out.push(id);
+  }
+  return out.length ? out : [...comp];
+}
+
+function connectObviousTinyGaps(maxMeters=24) {
+  autoBridgedGaps=0;
+  while(true){
+    const comps=getComponents();
+    if(comps.length<=1) break;
+    let best=null;
+    for(let i=0;i<comps.length;i++){
+      const aNodes=endpointNodes(comps[i]);
+      for(let j=i+1;j<comps.length;j++){
+        const bNodes=endpointNodes(comps[j]);
+        for(const aId of aNodes){
+          const a=nodes.get(aId);
+          if(!a) continue;
+          for(const bId of bNodes){
+            const b=nodes.get(bId);
+            if(!b) continue;
+            const d=haversine(a,b);
+            if(d<=maxMeters && (!best || d<best.d)) best={aId,bId,d};
+          }
+        }
+      }
+    }
+    if(!best) break;
+    const idx=edges.length;
+    edges.push({id:idx,a:best.aId,b:best.bId,w:best.d,name:'(map-gap bridge)',highway:'synthetic'});
+    syntheticEdges.add(idx);
+    rebuildGraph();
+    autoBridgedGaps++;
+    if(autoBridgedGaps>=20) break;
+  }
+  updateGraphHealth();
+}
+
+function rebuildGraph(){
   graph=new Map();
   const add=(u,v,idx,w)=>{
     if(!graph.has(u)) graph.set(u,[]);
@@ -782,7 +866,7 @@ async function loadRoads() {
 }
 
 function keepLargestConnectedComponent(){
-  // v0.8 intentionally retains all road groups inside the user's boundary.
+  // Deprecated in v0.8.1. The user's boundary is authoritative; no road groups are discarded.
   updateGraphHealth();
 }
 
@@ -790,8 +874,13 @@ function drawRoads(){
   roadLayer.clearLayers();
   edges.forEach((e,idx)=>{
     const a=nodes.get(e.a),b=nodes.get(e.b);
-    const synthetic=syntheticEdges.has(idx)||e.highway==='synthetic';
-    const line=L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{weight:synthetic?3:5,opacity:synthetic?.8:.65,dashArray:synthetic?'5 5':null}).bindTooltip(synthetic?'Map-gap bridge':e.name);
+    if(!a||!b) return;
+    const synthetic=syntheticEdges.has(idx) || e.highway==='synthetic';
+    const line=L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{
+      weight:synthetic?3:5,
+      opacity:synthetic?.8:.65,
+      dashArray:synthetic?'5 5':null
+    }).bindTooltip(synthetic?'Map-gap bridge':e.name);
     line._edgeIndex=idx;
     line.addTo(roadLayer);
   });
@@ -842,7 +931,77 @@ function nearestNode(lat,lon){
   return best;
 }
 
-function pairOddVerticesGreedy(odds){\n  const remaining=[...odds], pairs=[], cache=new Map();\n  const key=(a,b)=>a<b?`${a}|${b}`:`${b}|${a}`;\n  const gp=(a,b)=>{const k=key(a,b); if(!cache.has(k)) cache.set(k,dijkstra(a,b)); return cache.get(k);};\n  while(remaining.length>=2){\n    const u=remaining.shift(); let bestJ=-1,best=null;\n    for(let j=0;j<remaining.length;j++){const p=gp(u,remaining[j]); if(p&&(!best||p.distance<best.distance)){best=p;bestJ=j;}}\n    if(bestJ<0) break; pairs.push([u,remaining.splice(bestJ,1)[0]]);\n  }\n  let changed=true,passes=0;\n  while(changed&&passes++<8){\n    changed=false;\n    for(let i=0;i<pairs.length;i++) for(let j=i+1;j<pairs.length;j++){\n      const [a,b]=pairs[i],[c,d]=pairs[j];\n      const ab=gp(a,b),cd=gp(c,d); if(!ab||!cd) continue; const cur=ab.distance+cd.distance;\n      const ac=gp(a,c),bd=gp(b,d),ad=gp(a,d),bc=gp(b,c);\n      if(ac&&bd&&ac.distance+bd.distance<cur-.01 && (!ad||!bc||ac.distance+bd.distance<=ad.distance+bc.distance)){pairs[i]=[a,c];pairs[j]=[b,d];changed=true;}\n      else if(ad&&bc&&ad.distance+bc.distance<cur-.01){pairs[i]=[a,d];pairs[j]=[b,c];changed=true;}\n    }\n  }\n  const dup=new Map(); let added=0;\n  for(const [u,v] of pairs){const p=gp(u,v); if(!p) continue; for(const ei of p.edges) dup.set(ei,(dup.get(ei)||0)+1); added+=p.distance;}\n  return {dup,added};\n}
+function pairOddVerticesGreedy(odds){
+  const remaining=[...odds];
+  const pairs=[];
+  const pathCache=new Map();
+
+  function cacheKey(a,b){ return a<b ? `${a}|${b}` : `${b}|${a}`; }
+  function getPath(a,b){
+    const k=cacheKey(a,b);
+    if(!pathCache.has(k)) pathCache.set(k,dijkstra(a,b));
+    return pathCache.get(k);
+  }
+
+  while(remaining.length>=2){
+    const u=remaining.shift();
+    let bestJ=-1,bestPath=null;
+    for(let j=0;j<remaining.length;j++){
+      const p=getPath(u,remaining[j]);
+      if(p && (!bestPath || p.distance<bestPath.distance)){
+        bestPath=p;
+        bestJ=j;
+      }
+    }
+    if(bestJ<0) break;
+    const v=remaining.splice(bestJ,1)[0];
+    pairs.push([u,v]);
+  }
+
+  let improved=true, passes=0;
+  while(improved && passes<8){
+    improved=false;
+    passes++;
+    for(let i=0;i<pairs.length;i++){
+      for(let j=i+1;j<pairs.length;j++){
+        const [a,b]=pairs[i], [c,d]=pairs[j];
+        const pAB=getPath(a,b), pCD=getPath(c,d);
+        if(!pAB || !pCD) continue;
+        const current=pAB.distance+pCD.distance;
+        let best=current, mode=0;
+        const pAC=getPath(a,c), pBD=getPath(b,d);
+        if(pAC && pBD && pAC.distance+pBD.distance<best-0.01){
+          best=pAC.distance+pBD.distance;
+          mode=1;
+        }
+        const pAD=getPath(a,d), pBC=getPath(b,c);
+        if(pAD && pBC && pAD.distance+pBC.distance<best-0.01){
+          best=pAD.distance+pBC.distance;
+          mode=2;
+        }
+        if(mode===1){
+          pairs[i]=[a,c];
+          pairs[j]=[b,d];
+          improved=true;
+        } else if(mode===2){
+          pairs[i]=[a,d];
+          pairs[j]=[b,c];
+          improved=true;
+        }
+      }
+    }
+  }
+
+  const dup=new Map();
+  let added=0;
+  for(const [u,v] of pairs){
+    const p=getPath(u,v);
+    if(!p) continue;
+    for(const ei of p.edges) dup.set(ei,(dup.get(ei)||0)+1);
+    added+=p.distance;
+  }
+  return {dup,added};
+}
 
 function hierholzer(start, dup){
   const adj=new Map();
@@ -877,8 +1036,13 @@ function hierholzer(start, dup){
 
 function buildRoute(){
   if(!edges.length) return;
-  const comps=getComponents(); updateGraphHealth();
-  if(comps.length>1){setStatus(`Cannot build one continuous route yet: ${comps.length} road groups remain disconnected inside the boundary. All roads were retained.`);return;}
+  const comps=getComponents();
+  disconnectedComponents=comps.length;
+  updateGraphHealth();
+  if(comps.length>1){
+    setStatus(`Cannot build one continuous route yet: ${comps.length} road groups remain disconnected inside your boundary. All roads are still shown; adjust the boundary or enable service roads if a connector is missing.`);
+    return;
+  }
 
   const baseDegree=new Map();
   edges.forEach(e=>{

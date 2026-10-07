@@ -1,1 +1,9 @@
-const CACHE='patrol-route-shell-v5';const SHELL=['./','./index.html','./manifest.webmanifest'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));self.skipWaiting();});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))));self.clients.claim();});self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.hostname.includes('openstreetmap.org')||u.hostname.includes('overpass'))return;e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));});
+const CACHE = 'patrol-route-shell-v6';
+const SHELL = ['./', './index.html', './manifest.webmanifest'];
+self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL))); self.skipWaiting(); });
+self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
+self.addEventListener('fetch', event => {
+  const url=new URL(event.request.url);
+  if(url.hostname.includes('openstreetmap.org') || url.hostname.includes('overpass-api.de') || url.hostname.includes('overpass.kumi.systems')) return;
+  event.respondWith(fetch(event.request).catch(()=>caches.match(event.request)));
+});
