@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#11151b">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Patrol Route Prototype v0.8.1 Hosted — Deerfield</title>
+<title>Patrol Route Prototype v0.9 County GIS — Deerfield</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIINfQ3yn5RzYExw4DZsO8I7YwE8GQh6E6Q=" crossorigin="">
@@ -348,12 +348,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <body>
 <div id="app">
 <header>
-  <h1>Patrol Route — Deerfield Prototype v0.8.1 Hosted</h1>
+  <h1>Patrol Route — Deerfield Prototype v0.9 County GIS</h1>
   <button id="loadRoads" class="primary">1. Load Roads</button>
   <button id="buildRoute" class="good" disabled>2. Build Coverage Route</button>
   <button id="reverseRoute" disabled>Reverse</button>
   <button id="locateStart">Choose Start on Map</button>
-  <label class="toggle"><input id="includeService" type="checkbox"> include service roads</label>
+  <label class="toggle"><input id="includeService" type="checkbox"> include non-local roads</label>
 </header>
 
 <div id="main">
@@ -362,7 +362,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="card">
   <h2>Hosted mode</h2>
   <div class="small">
-    This build is intended to run from HTTPS. v0.8.1 keeps every matching road inside your editable boundary, repairs only tiny obvious map gaps, reports remaining disconnected road groups, and improves duplicate-mile optimization.
+    This build is intended to run from HTTPS. v0.9 uses Hernando County's road-centerline FeatureServer as the primary road source. OpenStreetMap remains the visual basemap and emergency fallback.
   </div>
 </div>
 
@@ -395,7 +395,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="stat"><div class="n" id="componentCount">—</div><div class="l">connected components</div></div>
       <div class="stat"><div class="n" id="gapCount">—</div><div class="l">auto-bridged gaps</div></div>
     </div>
-    <div class="small" id="graphHealthText" style="margin-top:8px">Load roads to analyze map connectivity.</div>
+    <div class="small" id="graphHealthText" style="margin-top:8px">Load roads to analyze map connectivity.</div><div class="small" id="roadSourceText" style="margin-top:6px"><b>Source:</b> not loaded</div>
   </div>
 
   <div class="card">
@@ -531,6 +531,7 @@ let covered = new Set();
 let syntheticEdges = new Set();
 let disconnectedComponents = 0;
 let autoBridgedGaps = 0;
+let activeRoadSource = 'none';
 
 const $ = id => document.getElementById(id);
 function setStatus(s){ $('status').textContent = s; }
@@ -650,13 +651,136 @@ function parseOsmMapXml(xmlText, poly, includeService=false) {
   return {nodes:filteredNodes, edges:foundEdges};
 }
 
+
+const COUNTY_ROAD_URL = 'https://services9.arcgis.com/YvdlPN5z971EmeG3/ArcGIS/rest/services/road_centerline/FeatureServer/0/query';
+
+function roadDisplayName(props={}) {
+  if(props.LABEL && String(props.LABEL).trim()) return String(props.LABEL).trim();
+  const parts=[props.PRD,props.STP,props.RD,props.STS,props.POD,props.POM]
+    .filter(v=>v!==null && v!==undefined && String(v).trim())
+    .map(v=>String(v).trim());
+  return parts.join(' ') || '(unnamed road)';
+}
+
+function countyRoadAllowed(props={}, includeNonLocal=false) {
+  const status=String(props.STATUS||'').toUpperCase();
+  if(status && status!=='OPEN') return false;
+
+  if(includeNonLocal) return true;
+
+  const cls=String(props.RDCLASS||'').toUpperCase();
+  // Keep local/private neighborhood streets by default and omit obvious
+  // through-roads that merely touch the patrol polygon.
+  const excluded=['PRIMARY','SECONDARY','INTERSTATE','FREEWAY','EXPRESSWAY','RAMP','HIGHWAY'];
+  if(excluded.some(x=>cls.includes(x))) return false;
+  return true;
+}
+
+function snapNodeFactory(toleranceMeters=4.0) {
+  const made=new Map();
+  let seq=1;
+
+  function candidateKey(lat,lon) {
+    // ~11 m latitude cells near Florida; neighboring cells are checked.
+    return `${Math.floor(lat*10000)}:${Math.floor(lon*10000)}`;
+  }
+
+  const buckets=new Map();
+  function nearbyBucketKeys(lat,lon) {
+    const y=Math.floor(lat*10000), x=Math.floor(lon*10000);
+    const keys=[];
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) keys.push(`${y+dy}:${x+dx}`);
+    return keys;
+  }
+
+  function get(lat,lon) {
+    let best=null,bestD=Infinity;
+    for(const key of nearbyBucketKeys(lat,lon)){
+      for(const id of (buckets.get(key)||[])){
+        const n=made.get(id);
+        const d=haversine({lat,lon},n);
+        if(d<bestD){ bestD=d; best=id; }
+      }
+    }
+    if(best!==null && bestD<=toleranceMeters) return best;
+
+    const id=`c${seq++}`;
+    made.set(id,{id,lat,lon});
+    const key=candidateKey(lat,lon);
+    if(!buckets.has(key)) buckets.set(key,[]);
+    buckets.get(key).push(id);
+    return id;
+  }
+  return {nodes:made,get};
+}
+
+function parseCountyGeoJSON(data, poly, includeNonLocal=false) {
+  const snap=snapNodeFactory(4.0);
+  const found=[];
+  let ei=0;
+
+  const features=Array.isArray(data?.features)?data.features:[];
+  for(const f of features){
+    const props=f.properties||{};
+    if(!countyRoadAllowed(props, includeNonLocal)) continue;
+
+    const geom=f.geometry||{};
+    let lines=[];
+    if(geom.type==='LineString') lines=[geom.coordinates];
+    else if(geom.type==='MultiLineString') lines=geom.coordinates;
+    else continue;
+
+    for(const coords of lines){
+      if(!Array.isArray(coords) || coords.length<2) continue;
+      for(let i=0;i<coords.length-1;i++){
+        const aC=coords[i], bC=coords[i+1];
+        if(!aC||!bC) continue;
+        const a={lon:Number(aC[0]),lat:Number(aC[1])};
+        const b={lon:Number(bC[0]),lat:Number(bC[1])};
+        if(!Number.isFinite(a.lat)||!Number.isFinite(a.lon)||!Number.isFinite(b.lat)||!Number.isFinite(b.lon)) continue;
+
+        const midLat=(a.lat+b.lat)/2, midLon=(a.lon+b.lon)/2;
+        if(!pointInPolygon(midLat,midLon,poly)) continue;
+
+        const w=haversine(a,b);
+        if(w<0.5) continue;
+
+        const aId=snap.get(a.lat,a.lon), bId=snap.get(b.lat,b.lon);
+        if(aId===bId) continue;
+
+        found.push({
+          id:ei++, a:aId, b:bId, w,
+          name:roadDisplayName(props),
+          highway:'county',
+          source:'county',
+          objectid:props.OBJECTID,
+          ngsegid:props.NGSEGID||null,
+          roadclass:props.RDCLASS||null,
+          status:props.STATUS||null,
+          oneway:props.ONEWAY||null,
+          speed:props.SPDLIMIT||null,
+          surface:props.SURFACE||null
+        });
+      }
+    }
+  }
+  return {nodes:snap.nodes,edges:found};
+}
+
+function setRoadSource(name, detail='') {
+  activeRoadSource=name;
+  const el=document.getElementById('roadSourceText');
+  if(el) el.innerHTML=`<b>Source:</b> ${name}${detail?` — ${detail}`:''}`;
+}
+
 async function loadRoads() {
   const poly=boundaryLatLngs();
   if(poly.length<3){ setStatus('Draw a community boundary first.'); return; }
 
   nodes.clear(); edges=[]; graph.clear(); routeNodeIds=[]; routeCoords=[];
   roadLayer.clearLayers(); routeLayer.clearLayers(); completedLayer.clearLayers();
-  covered.clear(); updateCoverage();
+  covered.clear(); syntheticEdges.clear(); disconnectedComponents=0; autoBridgedGaps=0;
+  updateCoverage(); updateGraphHealth(); setRoadSource('not loaded');
   $('buildRoute').disabled=true; $('reverseRoute').disabled=true;
   $('gpsBtn').disabled=true; $('markNearest').disabled=true; $('simulate').disabled=true;
   setStats();
@@ -666,88 +790,65 @@ async function loadRoads() {
   $('loadRoads').textContent='Loading…';
 
   const bb=boundaryBBox(poly);
-  const includeService=$('includeService').checked;
+  const includeNonLocal=$('includeService').checked;
 
   async function timedFetch(url, options={}, ms=30000) {
     const controller=new AbortController();
     const id=setTimeout(()=>controller.abort(),ms);
-    try {
-      return await fetch(url,{...options,signal:controller.signal,cache:'no-store'});
-    } finally {
-      clearTimeout(id);
-    }
+    try { return await fetch(url,{...options,signal:controller.signal,cache:'no-store'}); }
+    finally { clearTimeout(id); }
   }
 
-  let primaryError=null;
+  let countyError=null;
 
-  // PRIMARY: standard OSM map API. This is a very small bbox and avoids Overpass entirely.
+  // PRIMARY: Hernando County road-centerline FeatureServer.
   try {
-    setStatusHtml('<span class="loadingDot"></span>Loading Deerfield directly from OpenStreetMap…');
-    const bbox = [
-      bb.west.toFixed(6), bb.south.toFixed(6),
-      bb.east.toFixed(6), bb.north.toFixed(6)
-    ].join(',');
-    const url='https://api.openstreetmap.org/api/0.6/map?bbox='+bbox;
-    const r=await timedFetch(url,{method:'GET',mode:'cors'},30000);
-    if(!r.ok) throw new Error(`OpenStreetMap HTTP ${r.status}`);
-    const xml=await r.text();
-    const parsed=parseOsmMapXml(xml,poly,includeService);
+    setStatusHtml('<span class="loadingDot"></span>Loading Hernando County road centerlines…');
+    const params=new URLSearchParams({
+      where:"1=1",
+      geometry:`${bb.west},${bb.south},${bb.east},${bb.north}`,
+      geometryType:'esriGeometryEnvelope',
+      inSR:'4326',
+      spatialRel:'esriSpatialRelIntersects',
+      outFields:'OBJECTID,NGSEGID,PRD,STP,RD,STS,POD,POM,LABEL,SPDLIMIT,ONEWAY,RDCLASS,SURFACE,STATUS,TRAVEL',
+      returnGeometry:'true',
+      outSR:'4326',
+      resultRecordCount:'2000',
+      f:'geojson'
+    });
+    const r=await timedFetch(COUNTY_ROAD_URL+'?'+params.toString(),{method:'GET',mode:'cors'},30000);
+    if(!r.ok) throw new Error(`County GIS HTTP ${r.status}`);
+    const data=await r.json();
+    if(data?.error) throw new Error(data.error.message||'County GIS query error');
+
+    const parsed=parseCountyGeoJSON(data,poly,includeNonLocal);
     nodes=parsed.nodes;
     edges=parsed.edges;
+    if(!edges.length) throw new Error('County GIS returned no usable road segments inside this boundary');
+    setRoadSource('Hernando County road centerlines', `${data.features?.length||0} source features`);
   } catch(e) {
-    primaryError=e;
+    countyError=e;
   }
 
-  // FALLBACK: Overpass, only if the core map API fails or returns no usable roads.
+  // FALLBACK: OpenStreetMap only if county GIS is unavailable.
   if(!edges.length){
-    setStatusHtml('<span class="loadingDot"></span>Direct OpenStreetMap load did not finish. Trying backup road server…');
     try {
-      const service = includeService ? '|service' : '';
-      const q = `[out:json][timeout:35];
-        way["highway"~"^(residential|living_street|unclassified${service})$"]
-          (${bb.south.toFixed(6)},${bb.west.toFixed(6)},${bb.north.toFixed(6)},${bb.east.toFixed(6)});
-        (._;>;);
-        out body;`;
-      const ep='https://overpass.kumi.systems/api/interpreter';
-      const r=await timedFetch(ep,{
-        method:'POST',
-        body:'data='+encodeURIComponent(q),
-        mode:'cors',
-        headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}
-      },35000);
-      if(!r.ok) throw new Error(`Backup road server HTTP ${r.status}`);
-      const data=await r.json();
-
-      const allNodes=new Map();
-      for(const n of data.elements.filter(x=>x.type==='node')){
-        allNodes.set(n.id,{id:n.id,lat:n.lat,lon:n.lon});
-      }
-      let ei=0;
-      const found=[];
-      for(const w of data.elements.filter(x=>x.type==='way')){
-        for(let i=0;i<w.nodes.length-1;i++){
-          const a=allNodes.get(w.nodes[i]), b=allNodes.get(w.nodes[i+1]);
-          if(!a||!b) continue;
-          const midLat=(a.lat+b.lat)/2, midLon=(a.lon+b.lon)/2;
-          if(!pointInPolygon(midLat,midLon,poly)) continue;
-          const len=haversine(a,b);
-          if(len<1) continue;
-          found.push({
-            id:ei++,a:a.id,b:b.id,w:len,
-            name:(w.tags&&w.tags.name)||'(unnamed road)',
-            highway:(w.tags&&w.tags.highway)||''
-          });
-        }
-      }
-      edges=found;
-      const used=new Set(edges.flatMap(e=>[e.a,e.b]));
-      nodes=new Map([...allNodes].filter(([id])=>used.has(id)));
-    } catch(e2) {
+      setStatusHtml('<span class="loadingDot"></span>County GIS did not load. Trying OpenStreetMap fallback…');
+      const bbox=[bb.west.toFixed(6),bb.south.toFixed(6),bb.east.toFixed(6),bb.north.toFixed(6)].join(',');
+      const r=await timedFetch('https://api.openstreetmap.org/api/0.6/map?bbox='+bbox,{method:'GET',mode:'cors'},30000);
+      if(!r.ok) throw new Error(`OpenStreetMap HTTP ${r.status}`);
+      const xml=await r.text();
+      const parsed=parseOsmMapXml(xml,poly,includeNonLocal);
+      nodes=parsed.nodes;
+      edges=parsed.edges;
+      if(!edges.length) throw new Error('OpenStreetMap returned no usable roads');
+      setRoadSource('OpenStreetMap fallback');
+    } catch(osmError) {
       $('loadRoads').disabled=false;
       $('loadRoads').textContent='1. Load Roads';
-      const p = primaryError?.name==='AbortError' ? 'Direct OpenStreetMap request timed out.' : (primaryError?.message||'Direct OpenStreetMap request failed.');
-      const f = e2?.name==='AbortError' ? 'Backup road server timed out.' : (e2?.message||'Backup road server failed.');
-      setStatus(`Road download failed. ${p} ${f} Your selected start is still saved.`);
+      const c=countyError?.message||'County GIS failed';
+      const o=osmError?.message||'OpenStreetMap fallback failed';
+      setStatus(`Road download failed. County GIS: ${c}. Fallback: ${o}.`);
       showChosenStart();
       return;
     }
@@ -757,103 +858,31 @@ async function loadRoads() {
   $('loadRoads').textContent='1. Load Roads';
 
   rebuildGraph();
-  connectObviousTinyGaps(24);
+
+  // County data should already be topologically clean. Use a smaller repair
+  // tolerance than we used with OSM and retain everything if a gap remains.
+  connectObviousTinyGaps(activeRoadSource.startsWith('Hernando') ? 10 : 24);
+
   drawRoads();
   updateGraphHealth();
   showChosenStart();
 
-  const names=[...new Set(edges.map(e=>e.name).filter(n=>n!=='(unnamed road)'))].sort();
+  const names=[...new Set(edges.map(e=>e.name).filter(n=>n!=='(unnamed road)' && n!=='(map-gap bridge)'))].sort();
+
   if(!edges.length){
-    setStatus('The road source responded, but no matching residential roads were found inside the boundary.');
+    setStatus('The road source responded, but no matching road segments were found inside the boundary.');
     return;
   }
 
-  setStatus(`Loaded ${edges.length} road segments across ${names.length} named streets. ${chosenStart ? 'Your selected start is pinned.' : 'Choose a start now or use the default.'}`);
-  $('buildRoute').disabled=false;
-  setStats();
-}
-
-function getComponents() {
-  const seen=new Set(), comps=[];
-  for(const start of graph.keys()){
-    if(seen.has(start)) continue;
-    const stack=[start], comp=[];
-    seen.add(start);
-    while(stack.length){
-      const u=stack.pop();
-      comp.push(u);
-      for(const x of (graph.get(u)||[])){
-        if(!seen.has(x.to)){
-          seen.add(x.to);
-          stack.push(x.to);
-        }
-      }
-    }
-    comps.push(comp);
-  }
-  comps.sort((a,b)=>b.length-a.length);
-  return comps;
-}
-
-function updateGraphHealth() {
-  const comps=edges.length ? getComponents() : [];
-  disconnectedComponents=comps.length;
-  const cc=document.getElementById('componentCount');
-  const gc=document.getElementById('gapCount');
-  const txt=document.getElementById('graphHealthText');
-  if(cc) cc.textContent=edges.length ? String(disconnectedComponents) : '—';
-  if(gc) gc.textContent=edges.length ? String(autoBridgedGaps) : '—';
-  if(!txt) return;
-  if(!edges.length){
-    txt.textContent='Load roads to analyze map connectivity.';
-  } else if(disconnectedComponents===1 && autoBridgedGaps===0){
-    txt.textContent='Road graph is fully connected; no gap repairs were needed.';
-  } else if(disconnectedComponents===1){
-    txt.textContent=`Connected after ${autoBridgedGaps} tiny map-gap repair${autoBridgedGaps===1?'':'s'}.`;
+  const comps=getComponents().length;
+  if(comps===1){
+    setStatus(`Loaded ${edges.length} road segments across ${names.length} named streets from ${activeRoadSource}. Road graph is connected and ready to optimize.`);
+    $('buildRoute').disabled=false;
   } else {
-    txt.textContent=`${disconnectedComponents} road groups remain disconnected. No roads were discarded.`;
+    setStatus(`Loaded ${edges.length} road segments across ${names.length} named streets from ${activeRoadSource}. ${comps} road groups remain disconnected; all are shown and retained.`);
+    $('buildRoute').disabled=true;
   }
-}
-
-function endpointNodes(comp) {
-  const out=[];
-  for(const id of comp){
-    if((graph.get(id)||[]).length<=1) out.push(id);
-  }
-  return out.length ? out : [...comp];
-}
-
-function connectObviousTinyGaps(maxMeters=24) {
-  autoBridgedGaps=0;
-  while(true){
-    const comps=getComponents();
-    if(comps.length<=1) break;
-    let best=null;
-    for(let i=0;i<comps.length;i++){
-      const aNodes=endpointNodes(comps[i]);
-      for(let j=i+1;j<comps.length;j++){
-        const bNodes=endpointNodes(comps[j]);
-        for(const aId of aNodes){
-          const a=nodes.get(aId);
-          if(!a) continue;
-          for(const bId of bNodes){
-            const b=nodes.get(bId);
-            if(!b) continue;
-            const d=haversine(a,b);
-            if(d<=maxMeters && (!best || d<best.d)) best={aId,bId,d};
-          }
-        }
-      }
-    }
-    if(!best) break;
-    const idx=edges.length;
-    edges.push({id:idx,a:best.aId,b:best.bId,w:best.d,name:'(map-gap bridge)',highway:'synthetic'});
-    syntheticEdges.add(idx);
-    rebuildGraph();
-    autoBridgedGaps++;
-    if(autoBridgedGaps>=20) break;
-  }
-  updateGraphHealth();
+  setStats();
 }
 
 function rebuildGraph(){
@@ -880,7 +909,7 @@ function drawRoads(){
       weight:synthetic?3:5,
       opacity:synthetic?.8:.65,
       dashArray:synthetic?'5 5':null
-    }).bindTooltip(synthetic?'Map-gap bridge':e.name);
+    }).bindTooltip(synthetic?'Map-gap bridge':`${e.name}${e.roadclass?` • ${e.roadclass}`:''}${e.speed?` • ${e.speed} mph`:''}`);
     line._edgeIndex=idx;
     line.addTo(roadLayer);
   });
