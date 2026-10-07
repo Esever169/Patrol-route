@@ -1,11 +1,10 @@
-DEERFIELD PATROL ROUTE — HOSTED PROTOTYPE v0.7
+PATROL ROUTE — HOSTED PROTOTYPE v0.8
 
-Key changes:
-- Open route: no forced return to the starting point.
-- Flexible finish chosen to reduce repeated road mileage.
-- Deerfield boundary extended south to include Deer Path.
-- Visible START and FINISH markers.
-- Numbered route-order checkpoints.
-- Reverse swaps start/finish and redraws checkpoint order.
+- Editable boundary is authoritative.
+- No road component is silently discarded.
+- Tiny OSM endpoint gaps up to 24 m are auto-bridged and shown dashed.
+- Remaining disconnected road groups are reported instead of hidden.
+- Duplicate-mile pairing uses iterative pair-swap improvement.
+- Start-only / automatically optimized finish remains.
 
-Upload all files together to Netlify as a replacement deployment.
+Replace the existing GitHub Pages files with these and commit to main.

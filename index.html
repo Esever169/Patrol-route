@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#11151b">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Patrol Route Prototype v0.7 Hosted — Deerfield</title>
+<title>Patrol Route Prototype v0.8 Hosted — Deerfield</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIINfQ3yn5RzYExw4DZsO8I7YwE8GQh6E6Q=" crossorigin="">
@@ -348,7 +348,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <body>
 <div id="app">
 <header>
-  <h1>Patrol Route — Deerfield Prototype v0.7 Hosted</h1>
+  <h1>Patrol Route — Deerfield Prototype v0.8 Hosted</h1>
   <button id="loadRoads" class="primary">1. Load Roads</button>
   <button id="buildRoute" class="good" disabled>2. Build Coverage Route</button>
   <button id="reverseRoute" disabled>Reverse</button>
@@ -362,7 +362,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="card">
   <h2>Hosted mode</h2>
   <div class="small">
-    This build is intended to run from HTTPS. This HTTPS build loads Deerfield directly from OpenStreetMap's standard map API. A separate road server is used only as a backup.
+    This build is intended to run from HTTPS. v0.8 keeps every residential road inside your editable boundary, repairs only tiny obvious map gaps, and reports any road groups that still remain disconnected.
   </div>
 </div>
 
@@ -387,6 +387,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="stat"><div class="n" id="repeatMiles">—</div><div class="l">repeated miles</div></div>
       <div class="stat"><div class="n" id="efficiency">—</div><div class="l">coverage efficiency</div></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Road graph health</h2>
+    <div class="stats">
+      <div class="stat"><div class="n" id="componentCount">—</div><div class="l">connected components</div></div>
+      <div class="stat"><div class="n" id="gapCount">—</div><div class="l">auto-bridged gaps</div></div>
+    </div>
+    <div class="small" id="graphHealthText" style="margin-top:8px">Load roads to analyze map connectivity.</div>
   </div>
 
   <div class="card">
@@ -519,6 +528,9 @@ let positionMarker = null;
 let startMarker = null;
 let simulatedIndex = 0;
 let covered = new Set();
+let syntheticEdges = new Set();
+let disconnectedComponents = 0;
+let autoBridgedGaps = 0;
 
 const $ = id => document.getElementById(id);
 function setStatus(s){ $('status').textContent = s; }
@@ -744,8 +756,9 @@ async function loadRoads() {
   $('loadRoads').textContent='1. Load Roads';
 
   rebuildGraph();
-  keepLargestConnectedComponent();
+  connectObviousTinyGaps(24);
   drawRoads();
+  updateGraphHealth();
   showChosenStart();
 
   const names=[...new Set(edges.map(e=>e.name).filter(n=>n!=='(unnamed road)'))].sort();
@@ -759,7 +772,7 @@ async function loadRoads() {
   setStats();
 }
 
-function rebuildGraph(){
+\nfunction getComponents() {\n  const seen=new Set(), comps=[];\n  for(const start of graph.keys()){\n    if(seen.has(start)) continue;\n    const stack=[start], comp=[]; seen.add(start);\n    while(stack.length){\n      const u=stack.pop(); comp.push(u);\n      for(const x of (graph.get(u)||[])) if(!seen.has(x.to)){seen.add(x.to);stack.push(x.to);}\n    }\n    comps.push(comp);\n  }\n  comps.sort((a,b)=>b.length-a.length);\n  return comps;\n}\n\nfunction updateGraphHealth(){\n  const comps=edges.length?getComponents():[];\n  disconnectedComponents=comps.length;\n  const cc=document.getElementById('componentCount'), gc=document.getElementById('gapCount'), txt=document.getElementById('graphHealthText');\n  if(cc) cc.textContent=edges.length?String(disconnectedComponents):'—';\n  if(gc) gc.textContent=edges.length?String(autoBridgedGaps):'—';\n  if(!txt) return;\n  if(!edges.length) txt.textContent='Load roads to analyze map connectivity.';\n  else if(disconnectedComponents===1 && autoBridgedGaps===0) txt.textContent='Road graph is fully connected; no gap repairs were needed.';\n  else if(disconnectedComponents===1) txt.textContent=`Connected after ${autoBridgedGaps} tiny map-gap repair${autoBridgedGaps===1?'':'s'}.`;\n  else txt.textContent=`${disconnectedComponents} road groups remain disconnected. No roads were discarded.`;\n}\n\nfunction endpointNodes(comp){\n  const out=[];\n  for(const id of comp) if((graph.get(id)||[]).length<=1) out.push(id);\n  return out.length?out:[...comp];\n}\n\nfunction connectObviousTinyGaps(maxMeters=24){\n  autoBridgedGaps=0;\n  while(true){\n    const comps=getComponents();\n    if(comps.length<=1) break;\n    let best=null;\n    for(let i=0;i<comps.length;i++){\n      const aNodes=endpointNodes(comps[i]);\n      for(let j=i+1;j<comps.length;j++){\n        const bNodes=endpointNodes(comps[j]);\n        for(const aId of aNodes){\n          const a=nodes.get(aId); if(!a) continue;\n          for(const bId of bNodes){\n            const b=nodes.get(bId); if(!b) continue;\n            const d=haversine(a,b);\n            if(d<=maxMeters && (!best||d<best.d)) best={aId,bId,d};\n          }\n        }\n      }\n    }\n    if(!best) break;\n    const idx=edges.length;\n    edges.push({id:idx,a:best.aId,b:best.bId,w:best.d,name:'(map-gap bridge)',highway:'synthetic'});\n    syntheticEdges.add(idx);\n    rebuildGraph(); autoBridgedGaps++;\n    if(autoBridgedGaps>20) break;\n  }\n  updateGraphHealth();\n}\n\nfunction rebuildGraph(){
   graph=new Map();
   const add=(u,v,idx,w)=>{
     if(!graph.has(u)) graph.set(u,[]);
@@ -769,32 +782,16 @@ function rebuildGraph(){
 }
 
 function keepLargestConnectedComponent(){
-  const seen=new Set(); let best=[];
-  for(const start of graph.keys()){
-    if(seen.has(start)) continue;
-    const stack=[start], comp=[]; seen.add(start);
-    while(stack.length){
-      const u=stack.pop(); comp.push(u);
-      for(const x of (graph.get(u)||[])){
-        if(!seen.has(x.to)){seen.add(x.to);stack.push(x.to);}
-      }
-    }
-    if(comp.length>best.length) best=comp;
-  }
-  const keep=new Set(best);
-  edges=edges.filter(e=>keep.has(e.a)&&keep.has(e.b));
-  const used=new Set(edges.flatMap(e=>[e.a,e.b]));
-  nodes=new Map([...nodes].filter(([id])=>used.has(id)));
-  rebuildGraph();
+  // v0.8 intentionally retains all road groups inside the user's boundary.
+  updateGraphHealth();
 }
 
 function drawRoads(){
   roadLayer.clearLayers();
   edges.forEach((e,idx)=>{
     const a=nodes.get(e.a),b=nodes.get(e.b);
-    const line=L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{
-      weight:5, opacity:.65
-    }).bindTooltip(e.name);
+    const synthetic=syntheticEdges.has(idx)||e.highway==='synthetic';
+    const line=L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{weight:synthetic?3:5,opacity:synthetic?.8:.65,dashArray:synthetic?'5 5':null}).bindTooltip(synthetic?'Map-gap bridge':e.name);
     line._edgeIndex=idx;
     line.addTo(roadLayer);
   });
@@ -845,23 +842,7 @@ function nearestNode(lat,lon){
   return best;
 }
 
-function pairOddVerticesGreedy(odds){
-  const remaining=[...odds], dup=new Map();
-  let added=0;
-  while(remaining.length>=2){
-    const u=remaining.shift();
-    let bestJ=-1,bestPath=null;
-    for(let j=0;j<remaining.length;j++){
-      const p=dijkstra(u,remaining[j]);
-      if(p && (!bestPath || p.distance<bestPath.distance)){bestPath=p;bestJ=j;}
-    }
-    if(bestJ<0) break;
-    remaining.splice(bestJ,1);
-    for(const ei of bestPath.edges) dup.set(ei,(dup.get(ei)||0)+1);
-    added+=bestPath.distance;
-  }
-  return {dup,added};
-}
+function pairOddVerticesGreedy(odds){\n  const remaining=[...odds], pairs=[], cache=new Map();\n  const key=(a,b)=>a<b?`${a}|${b}`:`${b}|${a}`;\n  const gp=(a,b)=>{const k=key(a,b); if(!cache.has(k)) cache.set(k,dijkstra(a,b)); return cache.get(k);};\n  while(remaining.length>=2){\n    const u=remaining.shift(); let bestJ=-1,best=null;\n    for(let j=0;j<remaining.length;j++){const p=gp(u,remaining[j]); if(p&&(!best||p.distance<best.distance)){best=p;bestJ=j;}}\n    if(bestJ<0) break; pairs.push([u,remaining.splice(bestJ,1)[0]]);\n  }\n  let changed=true,passes=0;\n  while(changed&&passes++<8){\n    changed=false;\n    for(let i=0;i<pairs.length;i++) for(let j=i+1;j<pairs.length;j++){\n      const [a,b]=pairs[i],[c,d]=pairs[j];\n      const ab=gp(a,b),cd=gp(c,d); if(!ab||!cd) continue; const cur=ab.distance+cd.distance;\n      const ac=gp(a,c),bd=gp(b,d),ad=gp(a,d),bc=gp(b,c);\n      if(ac&&bd&&ac.distance+bd.distance<cur-.01 && (!ad||!bc||ac.distance+bd.distance<=ad.distance+bc.distance)){pairs[i]=[a,c];pairs[j]=[b,d];changed=true;}\n      else if(ad&&bc&&ad.distance+bc.distance<cur-.01){pairs[i]=[a,d];pairs[j]=[b,c];changed=true;}\n    }\n  }\n  const dup=new Map(); let added=0;\n  for(const [u,v] of pairs){const p=gp(u,v); if(!p) continue; for(const ei of p.edges) dup.set(ei,(dup.get(ei)||0)+1); added+=p.distance;}\n  return {dup,added};\n}
 
 function hierholzer(start, dup){
   const adj=new Map();
@@ -896,6 +877,8 @@ function hierholzer(start, dup){
 
 function buildRoute(){
   if(!edges.length) return;
+  const comps=getComponents(); updateGraphHealth();
+  if(comps.length>1){setStatus(`Cannot build one continuous route yet: ${comps.length} road groups remain disconnected inside the boundary. All roads were retained.`);return;}
 
   const baseDegree=new Map();
   edges.forEach(e=>{
@@ -950,7 +933,7 @@ function buildRoute(){
 
   routeLayer.bringToFront();
 
-  const unique=edges.reduce((s,e)=>s+e.w,0);
+  const unique=edges.reduce((s,e,i)=>s+(syntheticEdges.has(i)?0:e.w),0);
   const total=unique+best.added;
   setStats(unique,total,best.added);
 
@@ -971,7 +954,7 @@ function buildRoute(){
 }
 
 function setStats(unique=null,total=null,repeat=null){
-  if(unique===null && edges.length) unique=edges.reduce((s,e)=>s+e.w,0);
+  if(unique===null && edges.length) unique=edges.reduce((s,e,i)=>s+(syntheticEdges.has(i)?0:e.w),0);
   if(unique===null){
     $('uniqueMiles').textContent=$('routeMiles').textContent=$('repeatMiles').textContent=$('efficiency').textContent='—';
     return;
@@ -1116,7 +1099,8 @@ function saveSnapshot(){
     nodes:[...nodes.values()],
     edges,
     routeNodeIds,
-    chosenStart
+    chosenStart,
+    syntheticEdges:[...syntheticEdges]
   };
   localStorage.setItem('patrolRouteDeerfieldV1',JSON.stringify(obj));
   setStatus('Deerfield snapshot saved in this browser.');
@@ -1132,7 +1116,8 @@ function loadSnapshot(){
   edges=o.edges||[];
   routeNodeIds=o.routeNodeIds||[];
   chosenStart=o.chosenStart||null;
-  rebuildGraph(); drawRoads();
+  syntheticEdges=new Set(o.syntheticEdges||[]);
+  rebuildGraph(); updateGraphHealth(); drawRoads();
   showChosenStart();
   routeCoords=routeNodeIds.map(id=>nodes.has(id)?[nodes.get(id).lat,nodes.get(id).lon]:null).filter(Boolean);
   routeLayer.clearLayers();
