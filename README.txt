@@ -1,17 +1,23 @@
-PATROL ROUTE v0.9.2 — COUNTY GIS INTERSECTION NODING
+Patrol Route — Diagnostic v0.9.3
 
-Primary source:
-Hernando County Central GIS Basemap -> Streets.
+DEPLOYMENT
+Upload these four files to the root of the GitHub Pages repository:
+  index.html
+  manifest.webmanifest
+  service-worker.js
+  README.txt
 
-Changes from v0.9.1:
-- Detects true geometric intersections between county road-centerline segments.
-- Splits both road lines at those intersections to create routing nodes.
-- Repairs T-junction topology where an endpoint ends within 4 m of another road centerline.
-- Uses only a 6 m residual gap bridge after intersection noding.
-- Adds "inserted intersections" to Road graph health.
-- Keeps all road groups if anything remains disconnected.
-- Existing editable boundary, selected START, optimized FINISH, GPS, simulation,
-  efficiency metrics and county/OSM fallback behavior remain.
+The app is static and needs no build step. GitHub Pages must be served over HTTPS.
 
-GitHub Pages:
-Replace the four repository-root files with these files and commit to main.
+DIAGNOSTIC BEHAVIOR
+- Primary data source: Hernando County Central GIS Basemap / Streets (layer 10047).
+- Road components are assigned distinct colors after graph construction.
+- Dashed orange candidates form the minimum set of shortest endpoint-to-endpoint gaps needed to span the component graph.
+- Gap labels show feet and the details show the nearest road on both sides.
+- The app checks filtered county features within 40 feet of each candidate and reports the road name and exclusion reason.
+- Candidate gaps are visualization only. They are never inserted into the routing graph.
+- The non-local-road checkbox allows comparison against the unfiltered county set.
+
+Filtering defaults to existing local/minor streets. Major, special, reserved, platted, collector, municipal, parkway, truck-route, partial, and evacuation-road features remain available to the diagnostic check.
+
+External runtime assets: Leaflet, Leaflet Draw, OpenStreetMap tiles, and the public Hernando County ArcGIS FeatureServer. An internet connection is required for maps and road loading.

@@ -1,9 +1,9 @@
 {
-  "name": "Patrol Route",
+  "name": "Patrol Route Diagnostic",
   "short_name": "Patrol Route",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#11151b",
-  "theme_color": "#11151b",
-  "description": "Hernando County street-coverage patrol routing prototype."
+  "background_color": "#f4f7fa",
+  "theme_color": "#12243a",
+  "description": "Hernando County road-network coverage routing diagnostic."
 }
