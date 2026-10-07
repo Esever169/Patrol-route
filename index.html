@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#11151b">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Patrol Route Prototype v0.9 County GIS — Deerfield</title>
+<title>Patrol Route Prototype v0.9.1 County GIS — Deerfield</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIINfQ3yn5RzYExw4DZsO8I7YwE8GQh6E6Q=" crossorigin="">
@@ -348,7 +348,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <body>
 <div id="app">
 <header>
-  <h1>Patrol Route — Deerfield Prototype v0.9 County GIS</h1>
+  <h1>Patrol Route — Deerfield Prototype v0.9.1 County GIS</h1>
   <button id="loadRoads" class="primary">1. Load Roads</button>
   <button id="buildRoute" class="good" disabled>2. Build Coverage Route</button>
   <button id="reverseRoute" disabled>Reverse</button>
@@ -362,7 +362,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="card">
   <h2>Hosted mode</h2>
   <div class="small">
-    This build is intended to run from HTTPS. v0.9 uses Hernando County's road-centerline FeatureServer as the primary road source. OpenStreetMap remains the visual basemap and emergency fallback.
+    This build is intended to run from HTTPS. v0.9.1 uses Hernando County Central GIS's authoritative Streets layer as the primary road source. OpenStreetMap remains only the visual basemap and emergency fallback.
   </div>
 </div>
 
@@ -652,27 +652,35 @@ function parseOsmMapXml(xmlText, poly, includeService=false) {
 }
 
 
-const COUNTY_ROAD_URL = 'https://services9.arcgis.com/YvdlPN5z971EmeG3/ArcGIS/rest/services/road_centerline/FeatureServer/0/query';
+const COUNTY_ROAD_URL = 'https://services2.arcgis.com/x5zvhhxfUuRDntRe/ArcGIS/rest/services/Basemap/FeatureServer/10047/query';
 
 function roadDisplayName(props={}) {
-  if(props.LABEL && String(props.LABEL).trim()) return String(props.LABEL).trim();
-  const parts=[props.PRD,props.STP,props.RD,props.STS,props.POD,props.POM]
+  if(props.LABELNAME && String(props.LABELNAME).trim()) return String(props.LABELNAME).trim();
+  const parts=[props.PREDIR,props.STREETNAME,props.STREETTYPE,props.SUFFIX]
     .filter(v=>v!==null && v!==undefined && String(v).trim())
     .map(v=>String(v).trim());
   return parts.join(' ') || '(unnamed road)';
 }
 
 function countyRoadAllowed(props={}, includeNonLocal=false) {
-  const status=String(props.STATUS||'').toUpperCase();
-  if(status && status!=='OPEN') return false;
+  const status=String(props.STATUS||'').trim().toUpperCase();
+  // Keep blank status because the county layer may use null for valid streets.
+  if(status && ['CLOSED','NOT BUILT','UNBUILT','PROPOSED'].includes(status)) return false;
 
   if(includeNonLocal) return true;
 
-  const cls=String(props.RDCLASS||'').toUpperCase();
-  // Keep local/private neighborhood streets by default and omit obvious
-  // through-roads that merely touch the patrol polygon.
-  const excluded=['PRIMARY','SECONDARY','INTERSTATE','FREEWAY','EXPRESSWAY','RAMP','HIGHWAY'];
-  if(excluded.some(x=>cls.includes(x))) return false;
+  const roadType=String(props.ROAD_TYPE||props.TYPE||'').trim().toUpperCase();
+  const label=String(props.LABELNAME||'').toUpperCase();
+
+  // Exclude obvious major through-roads from neighborhood patrol coverage.
+  const excludedTypes=['INTERSTATE','EXPRESSWAY','FREEWAY','RAMP','ARTERIAL','HIGHWAY','STATE','US HWY'];
+  if(excludedTypes.some(x=>roadType.includes(x))) return false;
+
+  // Known major corridors can otherwise appear because the patrol polygon clips them.
+  const excludedNames=['SPRING HILL DRIVE','SPRING HILL DR','POWELL ROAD','POWELL RD',
+                       'SUNCOAST PARKWAY','SUNCOAST PKWY','SR 589','CR 572','CR 574'];
+  if(excludedNames.some(x=>label===x || label.startsWith(x+' '))) return false;
+
   return true;
 }
 
@@ -754,12 +762,15 @@ function parseCountyGeoJSON(data, poly, includeNonLocal=false) {
           highway:'county',
           source:'county',
           objectid:props.OBJECTID,
-          ngsegid:props.NGSEGID||null,
-          roadclass:props.RDCLASS||null,
+          streetid:props.STREETID||null,
+          segmentid:props.SEGMENTID||null,
+          roadclass:props.ROAD_TYPE||props.TYPE||null,
           status:props.STATUS||null,
-          oneway:props.ONEWAY||null,
-          speed:props.SPDLIMIT||null,
-          surface:props.SURFACE||null
+          addressRange:{
+            fromLeft:props.FROMLEFT??null,toLeft:props.TOLEFT??null,
+            fromRight:props.FROMRIGHT??null,toRight:props.TORIGHT??null
+          },
+          notes:props.NOTES||null
         });
       }
     }
@@ -810,7 +821,7 @@ async function loadRoads() {
       geometryType:'esriGeometryEnvelope',
       inSR:'4326',
       spatialRel:'esriSpatialRelIntersects',
-      outFields:'OBJECTID,NGSEGID,PRD,STP,RD,STS,POD,POM,LABEL,SPDLIMIT,ONEWAY,RDCLASS,SURFACE,STATUS,TRAVEL',
+      outFields:'OBJECTID,STREETID,SEGMENTID,STATUS,TYPE,PREDIR,STREETNAME,STREETTYPE,LABELNAME,STREETNAMEALIAS,ROAD_TYPE,FROMLEFT,TOLEFT,FROMRIGHT,TORIGHT,NOTES',
       returnGeometry:'true',
       outSR:'4326',
       resultRecordCount:'2000',
@@ -825,7 +836,7 @@ async function loadRoads() {
     nodes=parsed.nodes;
     edges=parsed.edges;
     if(!edges.length) throw new Error('County GIS returned no usable road segments inside this boundary');
-    setRoadSource('Hernando County road centerlines', `${data.features?.length||0} source features`);
+    setRoadSource('Hernando County Central GIS Streets', `${data.features?.length||0} source features`);
   } catch(e) {
     countyError=e;
   }
@@ -885,6 +896,108 @@ async function loadRoads() {
   setStats();
 }
 
+
+function getComponents() {
+  const seen=new Set();
+  const comps=[];
+  for(const start of graph.keys()){
+    if(seen.has(start)) continue;
+    const stack=[start], comp=[];
+    seen.add(start);
+    while(stack.length){
+      const u=stack.pop();
+      comp.push(u);
+      for(const x of (graph.get(u)||[])){
+        if(!seen.has(x.to)){ seen.add(x.to); stack.push(x.to); }
+      }
+    }
+    comps.push(comp);
+  }
+  comps.sort((a,b)=>b.length-a.length);
+  return comps;
+}
+
+function updateGraphHealth() {
+  const cc=document.getElementById('componentCount');
+  const gc=document.getElementById('gapCount');
+  const txt=document.getElementById('graphHealthText');
+
+  if(cc) cc.textContent = edges.length ? String(disconnectedComponents || getComponents().length) : '—';
+  if(gc) gc.textContent = edges.length ? String(autoBridgedGaps) : '—';
+
+  if(!txt) return;
+  if(!edges.length){
+    txt.textContent='Load roads to analyze map connectivity.';
+  } else if((disconnectedComponents||1)===1 && autoBridgedGaps===0){
+    txt.textContent='Road graph is fully connected; no gap repairs were needed.';
+  } else if((disconnectedComponents||1)===1 && autoBridgedGaps>0){
+    txt.textContent=`Road graph is connected after ${autoBridgedGaps} small map-gap repair${autoBridgedGaps===1?'':'s'}.`;
+  } else {
+    txt.textContent=`${disconnectedComponents} road groups remain disconnected. No roads were discarded.`;
+  }
+}
+
+function endpointNodesForComponent(compSet) {
+  const arr=[];
+  for(const id of compSet){
+    const deg=(graph.get(id)||[]).length;
+    if(deg<=1) arr.push(id);
+  }
+  return arr.length ? arr : [...compSet];
+}
+
+function connectObviousTinyGaps(maxMeters=10) {
+  let bridges=0;
+
+  while(true){
+    const comps=getComponents();
+    if(comps.length<=1) break;
+
+    let best=null;
+    for(let i=0;i<comps.length;i++){
+      const aSet=new Set(comps[i]);
+      const aNodes=endpointNodesForComponent(aSet);
+
+      for(let j=i+1;j<comps.length;j++){
+        const bSet=new Set(comps[j]);
+        const bNodes=endpointNodesForComponent(bSet);
+
+        for(const aId of aNodes){
+          const a=nodes.get(aId); if(!a) continue;
+          for(const bId of bNodes){
+            const b=nodes.get(bId); if(!b) continue;
+            const d=haversine(a,b);
+            if(d<=maxMeters && (!best || d<best.d)){
+              best={aId,bId,d};
+            }
+          }
+        }
+      }
+    }
+
+    if(!best) break;
+
+    const idx=edges.length;
+    edges.push({
+      id:idx,
+      a:best.aId,
+      b:best.bId,
+      w:best.d,
+      name:'(map-gap bridge)',
+      highway:'synthetic',
+      source:'synthetic'
+    });
+    syntheticEdges.add(idx);
+    rebuildGraph();
+    bridges++;
+    if(bridges>=20) break;
+  }
+
+  autoBridgedGaps=bridges;
+  disconnectedComponents=getComponents().length;
+  updateGraphHealth();
+}
+
 function rebuildGraph(){
   graph=new Map();
   const add=(u,v,idx,w)=>{
@@ -909,7 +1022,7 @@ function drawRoads(){
       weight:synthetic?3:5,
       opacity:synthetic?.8:.65,
       dashArray:synthetic?'5 5':null
-    }).bindTooltip(synthetic?'Map-gap bridge':`${e.name}${e.roadclass?` • ${e.roadclass}`:''}${e.speed?` • ${e.speed} mph`:''}`);
+    }).bindTooltip(synthetic?'Map-gap bridge':`${e.name}${e.roadclass?` • ${e.roadclass}`:''}`);
     line._edgeIndex=idx;
     line.addTo(roadLayer);
   });
@@ -1337,7 +1450,16 @@ map.on('click', e=>{
   }
 });
 
-$('loadRoads').onclick=loadRoads;
+$('loadRoads').onclick=async()=>{
+  try{
+    await loadRoads();
+  }catch(e){
+    $('loadRoads').disabled=false;
+    $('loadRoads').textContent='1. Load Roads';
+    setStatus(`Load Roads error: ${e?.message||e}.`);
+    console.error(e);
+  }
+};
 $('buildRoute').onclick=buildRoute;
 $('reverseRoute').onclick=reverseRoute;
 $('gpsBtn').onclick=toggleGps;

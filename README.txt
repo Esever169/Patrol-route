@@ -1,17 +1,14 @@
-PATROL ROUTE v0.9 — HERNANDO COUNTY GIS
+PATROL ROUTE v0.9.1 — HERNANDO COUNTY CENTRAL GIS
 
-PRIMARY ROAD SOURCE
-Hernando County Road Centerline FeatureServer:
-https://services9.arcgis.com/YvdlPN5z971EmeG3/ArcGIS/rest/services/road_centerline/FeatureServer/0
+FIXES
+- Corrected the county road source. v0.9 accidentally pointed to a non-Hernando ArcGIS road service.
+- Primary source is now the official Hernando County Central GIS Basemap -> Streets layer:
+  https://services2.arcgis.com/x5zvhhxfUuRDntRe/ArcGIS/rest/services/Basemap/FeatureServer/10047
+- Restored missing road-graph helper functions that caused Load Roads to fail immediately.
+- Added visible error reporting around the Load Roads button.
+- County field mapping now matches the actual Hernando Streets schema.
+- OSM remains only a fallback/basemap.
 
-What changed:
-- Hernando County road centerlines are now the primary routing geometry.
-- OSM remains the basemap and emergency fallback only.
-- County road attributes loaded when available: road name, class, status, speed limit, one-way, surface.
-- County endpoints are snapped with a conservative 4 m topology tolerance.
-- Only tiny remaining county gaps (<=10 m) are auto-bridged.
-- Drawn patrol boundary remains authoritative.
-- Existing start-only / optimized finish routing, GPS, simulation, efficiency metrics, and route markers remain.
-
-GitHub Pages:
-Replace the existing repository files with the contents of this ZIP and commit to main.
+GITHUB PAGES
+Replace the four files in the repository root and commit to main.
+If the browser still shows an older version, hard refresh once or close/reopen the page.
