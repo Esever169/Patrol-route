@@ -1,4 +1,4 @@
-Patrol Route — Diagnostic v0.9.4
+Patrol Route — Prototype v0.10
 
 DEPLOYMENT
 Upload these four files to the root of the GitHub Pages repository:
@@ -9,14 +9,16 @@ Upload these four files to the root of the GitHub Pages repository:
 
 The app is static and needs no build step. GitHub Pages must be served over HTTPS.
 
-DIAGNOSTIC BEHAVIOR
+OPERATOR WORKFLOW
+- Draw a circle, rectangle, or freeform patrol area.
+- Choose START, then choose Auto-finish, a map-selected FINISH, or Return to START.
+- Load Connected Streets selects the county-road component nearest START and ignores unrelated fragments.
+- Build Coverage Route follows road edges continuously; it does not draw straight shortcuts between disconnected traversal steps.
+
+TECHNICAL BEHAVIOR
 - Primary data source: Hernando County Central GIS Basemap / Streets (layer 10047).
-- Road components are assigned distinct colors after graph construction.
-- Dashed orange candidates form the minimum set of shortest endpoint-to-endpoint gaps needed to span the component graph.
-- Gap labels show feet and the details show the nearest road on both sides.
-- Selecting a sidebar gap (or its dashed map line) zooms to it, highlights both endpoints, and opens its detail popup.
-- The app checks filtered county features within 40 feet of each candidate and reports the road name and exclusion reason.
-- Candidate gaps are visualization only. They are never inserted into the routing graph.
+- Intersection noding and conservative T-junction repair are performed before connected-network selection.
+- Technical counts are retained in a collapsed details section.
 - The non-local-road checkbox allows comparison against the unfiltered county set.
 
 Filtering defaults to existing local/minor streets. Major, special, reserved, platted, collector, municipal, parkway, truck-route, partial, and evacuation-road features remain available to the diagnostic check.
