@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.15</title>
+  <title>Patrol Route v0.16</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,12 +22,12 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.15</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.16</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app groups local streets into patrol pockets, finishes each pocket before leaving when practical, and uses main streets primarily as connectors.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app now treats patrol pockets as hard sequencing units: finish the current pocket before leaving, then move to the next pocket using the connector network.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
     <section class="card"><h2>Route status</h2><div id="status" class="status">Adjust the boundary, choose START, then load roads.</div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div><div id="progressText" class="progress-text">Route not started</div><button id="routeBtn" disabled>Build Optimized Route</button><button id="reverseBtn" class="secondary" disabled>Reverse Route</button><button id="simulateBtn" class="secondary" disabled>Simulate Drive</button><button id="gpsBtn" class="secondary" disabled>Use Live GPS</button></section>
-    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Patrol pockets</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Route U-turns</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
+    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Patrol pockets</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Pocket re-entries</span><b id="reentryStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
     <section class="card"><h2>Route efficiency</h2><div class="stats"><span>Unique coverage</span><b id="uniqueMetric">—</b><span>Baseline double-back</span><b id="baselineMetric">—</b><span>Optimized route</span><b id="totalMetric">—</b><span>Miles saved</span><b id="savingsMetric">—</b><span>Repeated travel</span><b id="repeatMetric">—</b><span>Efficiency</span><b id="effMetric">—</b><span>Most repeated street</span><b id="repeatedStreetMetric">—</b><span>Optimized FINISH</span><b id="finishMetric">—</b></div></section>
   </aside>
   <div id="map"></div>
@@ -44,14 +44,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,att
 const drawn=new L.FeatureGroup().addTo(map), roadLayer=L.layerGroup().addTo(map), gapLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map), markerLayer=L.layerGroup().addTo(map);
 const shapeStyle={color:'#ffd34e',weight:3,fillOpacity:.06};
 const drawControl=new L.Control.Draw({position:'topright',draw:{polygon:{shapeOptions:shapeStyle},rectangle:{shapeOptions:shapeStyle},circle:{shapeOptions:shapeStyle,showRadius:true,metric:true,feet:true},polyline:false,circlemarker:false,marker:false},edit:{featureGroup:drawn,remove:false}}).addTo(map);
-let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0};
+let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0,reentries:0};
 const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,-82.5348],[28.4848,-82.5524]],{color:'#ffd34e',weight:3,fillOpacity:.06}).addTo(drawn); boundary=defaultBoundary;
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
 map.on('click',e=>{if(choosingStart){choosingStart=false;startLatLng=e.latlng;if(startMarker)markerLayer.removeLayer(startMarker);startMarker=L.marker(e.latlng).bindTooltip('START',{permanent:true,direction:'top'}).addTo(markerLayer);$('startBtn').textContent='Change START';setStatus('START selected. Load connected streets when ready.','good');return}if(choosingFinish){choosingFinish=false;finishLatLng=e.latlng;if(finishMarker)markerLayer.removeLayer(finishMarker);finishMarker=L.marker(e.latlng).bindTooltip('FINISH',{permanent:true,direction:'top'}).addTo(markerLayer);$('finishBtn').textContent='Change FINISH';setStatus('FINISH selected. Load streets or build the route.','good')}});
 $('startBtn').onclick=()=>{choosingStart=true;choosingFinish=false;setStatus('Tap the map to place START.');}; $('finishBtn').onclick=()=>{choosingFinish=true;choosingStart=false;setStatus('Tap the map to place FINISH.');};document.querySelectorAll('input[name=finishMode]').forEach(r=>r.onchange=()=>{$('finishBtn').disabled=r.value!=='choose';if(r.value!=='choose'&&finishMarker){markerLayer.removeLayer(finishMarker);finishMarker=null}setStatus(r.value==='return'?'Route will return to START.':r.value==='choose'?'Choose FINISH on the map.':'The app will choose the finish that reduces repeated travel.');}); $('loadBtn').onclick=loadRoads; $('routeBtn').onclick=buildRoute; $('reverseBtn').onclick=reverseRoute; $('simulateBtn').onclick=simulate; $('gpsBtn').onclick=liveGps; $('includeNonLocal').onchange=()=>features.length&&loadRoads();
 function setStatus(t,c=''){$('status').textContent=t;$('status').className='status '+c}
-function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
+function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat','reentryStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
 function boundaryRing(){if(boundary instanceof L.Circle){const c=boundary.getLatLng(),r=boundary.getRadius(),pts=[];for(let i=0;i<72;i++){const a=i*2*Math.PI/72,dy=Math.sin(a)*r/R*180/Math.PI,dx=Math.cos(a)*r/(R*Math.cos(c.lat*Math.PI/180))*180/Math.PI;pts.push(L.latLng(c.lat+dy,c.lng+dx))}return pts}return boundary.getLatLngs()[0]}
 function pointInPoly(p,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.lat>p.lat)!=(b.lat>p.lat))&&(p.lng<(b.lng-a.lng)*(p.lat-a.lat)/(b.lat-a.lat)+a.lng))inside=!inside;}return inside}
 function segmentCrossesBoundary(a,b,ring){if(pointInPoly(a,ring)||pointInPoly(b,ring))return true;for(let i=0,j=ring.length-1;i<ring.length;j=i++)if(intersection({a,b},{a:ring[j],b:ring[i]}))return true;return false}
@@ -76,27 +76,58 @@ function buildGraph(fs,ring){const base=[],featureEnds=[];detectedLoops=0;topolo
  const heading=e=>{const y=e.b.lat-e.a.lat,x=(e.b.lng-e.a.lng)*Math.cos((e.a.lat+e.b.lat)*Math.PI/360);return(Math.atan2(y,x)*180/Math.PI+180)%180},angleDiff=(a,b)=>Math.min(Math.abs(a-b),180-Math.abs(a-b));for(let i=0;i<edges.length;i++){const a=edges[i];if(a.synthetic||a.loop||!a.required||a.length<20)continue;const am=interp(a.a,a.b,.5),an=normalizedRoadName(roadName(a.p));for(let j=i+1;j<edges.length;j++){const b=edges[j];if(b.synthetic||b.loop||!b.required||b.length<20||normalizedRoadName(roadName(b.p))!==an||angleDiff(heading(a),heading(b))>12)continue;const bm=interp(b.a,b.b,.5),pa=projectToSegment(am,b.a,b.b),pb=projectToSegment(bm,a.a,a.b),d=Math.min(pa.d,pb.d);if(d>=8&&d<=35&&pa.t>.05&&pa.t<.95&&pb.t>.05&&pb.t<.95){b.required=false;b.pairedWith=i;pairedCarriageways++;break}}}
  const nodes=new Map(),key=p=>p.lat.toFixed(5)+','+p.lng.toFixed(5);edges.forEach((e,i)=>{e.ak=key(e.a);e.bk=key(e.b);if(!nodes.has(e.ak))nodes.set(e.ak,[]);if(!nodes.has(e.bk))nodes.set(e.bk,[]);nodes.get(e.ak).push(i);nodes.get(e.bk).push(i)});classifyPatrolSemantics(nodes);const seen=new Set();components=[];for(const k of nodes.keys()){if(seen.has(k))continue;const stack=[k],ei=new Set(),nk=[];seen.add(k);while(stack.length){const n=stack.pop();nk.push(n);for(const id of nodes.get(n)){ei.add(id);const e=edges[id],o=e.ak===n?e.bk:e.ak;if(!seen.has(o)){seen.add(o);stack.push(o)}}}components.push({nodes:nk,edgeIds:[...ei]})}components.sort((a,b)=>b.edgeIds.length-a.edgeIds.length);components.forEach((c,i)=>c.edgeIds.forEach(id=>edges[id].component=i));}
 function classifyPatrolSemantics(nodes){
- // Roundabouts are treated as connector geometry, not required residential coverage.
- // A high-confidence roundabout is either explicitly tagged or a compact closed feature
- // with at least three external approaches. This avoids treating ordinary closed loops
- // and cul-de-sac bulbs as roundabouts.
- const byFid=new Map();edges.forEach((e,i)=>{if(!byFid.has(e.fid))byFid.set(e.fid,[]);byFid.get(e.fid).push(i)});let roundCount=0;
+ // Reset semantic flags from any previous load.
+ edges.forEach(e=>{e.roundabout=false;e.mainConnector=false;e.clusterId=-1});
+ const byFid=new Map();edges.forEach((e,i)=>{if(!byFid.has(e.fid))byFid.set(e.fid,[]);byFid.get(e.fid).push(i)});const roundEdges=new Set();
+
+ // 1) Explicit / feature-level roundabouts.
  for(const ids of byFid.values()){
-  const group=ids.map(i=>edges[i]),loop=group.some(e=>e.loop),explicit=group.some(e=>String(e.p.JUNCTION||'').toLowerCase()==='roundabout'||String(e.p.ROAD_TYPE||'').toUpperCase().includes('ROUNDABOUT'));
-  if(!loop&&!explicit)continue;const perimeter=group.reduce((x,e)=>x+e.length,0),gnodes=new Set();group.forEach(e=>{gnodes.add(e.ak);gnodes.add(e.bk)});const approaches=new Set();for(const k of gnodes)for(const id of nodes.get(k)||[])if(!ids.includes(id))approaches.add(id);
-  const compact=perimeter<=260,round=explicit||(loop&&compact&&approaches.size>=3);if(round){roundCount++;for(const id of ids){edges[id].roundabout=true;edges[id].required=false}}
+  const group=ids.map(i=>edges[i]),explicit=group.some(e=>String(e.p.JUNCTION||'').toLowerCase()==='roundabout'||String(e.p.ROAD_TYPE||'').toUpperCase().includes('ROUNDABOUT')),loop=group.some(e=>e.loop);
+  if(!explicit&&!loop)continue;
+  const perimeter=group.reduce((x,e)=>x+e.length,0),gnodes=new Set();group.forEach(e=>{gnodes.add(e.ak);gnodes.add(e.bk)});
+  const approaches=new Set();for(const k of gnodes)for(const id of nodes.get(k)||[])if(!ids.includes(id))approaches.add(id);
+  if(explicit||(loop&&perimeter<=180&&approaches.size>=3))ids.forEach(id=>roundEdges.add(id));
  }
- detectedLoops=roundCount;
- // Classify long branching streets as neighborhood spines/main connectors. Reusing
- // these is allowed, but the routing engine increasingly penalizes repeated passes.
- const byName=new Map();for(let i=0;i<edges.length;i++){const e=edges[i];if(!e.required||e.synthetic||e.roundabout)continue;const n=normalizedRoadName(roadName(e.p));if(!byName.has(n))byName.set(n,[]);byName.get(n).push(i)}
+
+ // 2) Graph-level compact-cycle detector. County GIS may split a roundabout into
+ // several features, so feature metadata alone is not enough.
+ // For each short edge, look for a short alternate path between its endpoints.
+ function boundedAltPath(edgeId,maxDist=150){
+  const e0=edges[edgeId],dist=new Map([[e0.ak,0]]),prev=new Map(),q=[[0,e0.ak]];
+  while(q.length){
+   q.sort((a,b)=>a[0]-b[0]);const [du,u]=q.shift();if(du!==dist.get(u)||du>maxDist)continue;
+   if(u===e0.bk){const ids=[];let k=u;while(k!==e0.ak){const x=prev.get(k);if(!x)return null;ids.unshift(x.id);k=x.node}return{ids,cost:du}}
+   for(const id of nodes.get(u)||[]){if(id===edgeId)continue;const e=edges[id],v=e.ak===u?e.bk:e.ak,nd=du+e.length;if(nd<=(dist.get(v)??Infinity)&&nd<=maxDist){dist.set(v,nd);prev.set(v,{node:u,id});q.push([nd,v])}}
+  }return null
+ }
+ for(let i=0;i<edges.length;i++){
+  const e=edges[i];if(e.synthetic||e.length>65||roundEdges.has(i))continue;
+  const alt=boundedAltPath(i,150);if(!alt)continue;const cycle=[i,...alt.ids],uniq=[...new Set(cycle)],perimeter=uniq.reduce((x,id)=>x+edges[id].length,0);
+  if(perimeter<25||perimeter>170)continue;
+  const cNodes=new Set();uniq.forEach(id=>{cNodes.add(edges[id].ak);cNodes.add(edges[id].bk)});
+  const approaches=new Set();for(const k of cNodes)for(const id of nodes.get(k)||[])if(!uniq.includes(id))approaches.add(id);
+  if(approaches.size<3)continue;
+  // Compactness guard: ordinary neighborhood loops are much wider than a traffic circle.
+  const pts=[...cNodes].map(k=>{const id=(nodes.get(k)||[])[0],ed=edges[id];return ed.ak===k?ed.a:ed.b});let diameter=0;
+  for(let x=0;x<pts.length;x++)for(let y=x+1;y<pts.length;y++)diameter=Math.max(diameter,distance(pts[x],pts[y]));
+  if(diameter<=60)uniq.forEach(id=>roundEdges.add(id));
+ }
+ roundEdges.forEach(id=>{edges[id].roundabout=true;edges[id].required=false});
+ detectedLoops=roundEdges.size?1:0;
+
+ // Long, branching named streets are neighborhood spines. They remain required
+ // coverage if appropriate, but are also the connector network between pockets.
+ const byName=new Map();for(let i=0;i<edges.length;i++){const e=edges[i];if(e.synthetic||e.roundabout)continue;const n=normalizedRoadName(roadName(e.p));if(!byName.has(n))byName.set(n,[]);byName.get(n).push(i)}
  for(const ids of byName.values()){
-  const total=ids.reduce((x,id)=>x+edges[id].length,0),branch=new Set();for(const id of ids){for(const k of [edges[id].ak,edges[id].bk])if((nodes.get(k)||[]).length>=3)branch.add(k)}const force=ids.some(id=>String(edges[id].p.TYPE||'').toUpperCase()==='MAJOR'||['PKWY','MNCL','TRKR'].includes(String(edges[id].p.ROAD_TYPE||'').toUpperCase()));if(force||(total>=280&&branch.size>=3))for(const id of ids)edges[id].mainConnector=true;
+  const total=ids.reduce((x,id)=>x+edges[id].length,0),branch=new Set();
+  for(const id of ids)for(const k of [edges[id].ak,edges[id].bk])if((nodes.get(k)||[]).length>=3)branch.add(k);
+  const force=ids.some(id=>String(edges[id].p.TYPE||'').toUpperCase()==='MAJOR'||['PKWY','MNCL','TRKR'].includes(String(edges[id].p.ROAD_TYPE||'').toUpperCase()));
+  if(force||(total>=260&&branch.size>=3))for(const id of ids)edges[id].mainConnector=true;
  }
- // Natural patrol pockets are connected groups of required local streets after the
- // main spines and roundabouts are removed. The route strongly prefers completing a
- // pocket before moving to another one.
- const localAdj=new Map();for(let i=0;i<edges.length;i++){const e=edges[i];if(!e.required||e.mainConnector||e.roundabout)continue;for(const [a,b] of [[e.ak,e.bk],[e.bk,e.ak]]){if(!localAdj.has(a))localAdj.set(a,[]);localAdj.get(a).push({to:b,id:i})}}
+
+ // Hard patrol pockets: connected required local streets after the connector
+ // spines and roundabouts are removed.
+ const localAdj=new Map();for(let i=0;i<edges.length;i++){const e=edges[i];if(!e.required||e.mainConnector||e.roundabout)continue;for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){if(!localAdj.has(u))localAdj.set(u,[]);localAdj.get(u).push({to:v,id:i})}}
  patrolClusters=[];const seen=new Set();for(const seed of localAdj.keys()){if(seen.has(seed))continue;const stack=[seed],edgeSet=new Set();seen.add(seed);while(stack.length){const u=stack.pop();for(const x of localAdj.get(u)||[]){edgeSet.add(x.id);if(!seen.has(x.to)){seen.add(x.to);stack.push(x.to)}}}if(edgeSet.size){const cid=patrolClusters.length;for(const id of edgeSet)edges[id].clusterId=cid;patrolClusters.push([...edgeSet])}}
 }
 function intersection(s,t){const x1=s.a.lng,y1=s.a.lat,x2=s.b.lng,y2=s.b.lat,x3=t.a.lng,y3=t.a.lat,x4=t.b.lng,y4=t.b.lat,d=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);if(Math.abs(d)<1e-12)return null;const a=x1*y2-y1*x2,b=x3*y4-y3*x4;const x=(a*(x3-x4)-(x1-x2)*b)/d,y=(a*(y3-y4)-(y1-y2)*b)/d;const tt=Math.abs(x2-x1)>Math.abs(y2-y1)?(x-x1)/(x2-x1):(y-y1)/(y2-y1),u=Math.abs(x4-x3)>Math.abs(y4-y3)?(x-x3)/(x4-x3):(y-y3)/(y4-y3);return tt>=0&&tt<=1&&u>=0&&u<=1?{t:tt,u,point:L.latLng(y,x)}:null}
@@ -109,30 +140,161 @@ function findExcluded(g){let best=null;for(const f of excluded){const cs=f.geome
 function gapPopup(g,hit,feet){return '<b>'+Math.round(feet)+' ft diagnostic gap</b><br>Component '+(g.i+1)+': '+escapeHtml(g.a.name)+'<br>Component '+(g.j+1)+': '+escapeHtml(g.b.name)+'<br><br>'+(hit?'<b>Excluded county segment nearby</b><br>'+escapeHtml(roadName(hit.f.properties))+' — '+escapeHtml(exclusionReason(hit.f.properties)):'No filtered county segment found within 40 ft.')+'<br><em>Diagnostic only — not connected.</em>'}
 function updateStats(){const covered=edges.filter(e=>!e.synthetic&&e.required),names=new Set(covered.map(e=>roadName(e.p)).filter(n=>n!=='Unnamed road')),miles=covered.reduce((s,e)=>s+e.length,0)/1609.344;$('osmStat').textContent=osmSupplementCount;$('segmentStat').textContent=edges.length;$('streetStat').textContent=names.size;$('streetStat').title=[...names].sort().join(', ');$('mileStat').textContent=miles.toFixed(2);$('componentStat').textContent=1;$('ignoredStat').textContent=ignoredFragments;$('intersectionStat').textContent=insertedIntersections;$('roundaboutStat').textContent=detectedLoops;$('clusterStat').textContent=patrolClusters.length;$('repairStat').textContent=topologyRepairs;$('boundaryStat').textContent=boundaryExclusions;$('corridorStat').textContent=pairedCarriageways;$('excludedStat').textContent=excluded.length;$('excludedStat').title=excluded.map(f=>roadName(f.properties)+' — '+exclusionReason(f.properties)).sort().join(', ');$('uniqueMetric').textContent=miles.toFixed(2)+' mi'}
 function buildRoute(){
- if(!edges.length)return;routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0};$('uturnStat').textContent='—';$('mainRepeatStat').textContent='—';
- const adj=new Map(),nodePoint=new Map();edges.forEach((e,i)=>{nodePoint.set(e.ak,e.a);nodePoint.set(e.bk,e.b);for(const [k,to] of [[e.ak,e.bk],[e.bk,e.ak]]){if(!adj.has(k))adj.set(k,[]);adj.get(k).push({id:i,to,length:e.length})}});
- const coverageNodes=new Set();edges.forEach(e=>{if(e.required){coverageNodes.add(e.ak);coverageNodes.add(e.bk)}});const nearest=p=>{let best=null,bd=Infinity;for(const k of coverageNodes){const q=nodePoint.get(k),d=distance(p,q);if(d<bd){bd=d;best=k}}return best};const start=nearest(startLatLng),mode=finishMode();if(!start){setStatus('No required coverage node is available near START.','error');return}
- const requiredRemaining=new Set(edges.map((e,i)=>e.required?i:null).filter(i=>i!==null)),edgeUses=new Map(),mainStreetUses=new Map(),completedClusters=new Set(),routeNodes=[start];let current=start,inEdge=null,activeCluster=null;
- const other=(id,node)=>edges[id].ak===node?edges[id].bk:edges[id].ak;
+ if(!edges.length)return;
+ routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0,reentries:0};
+ $('uturnStat').textContent='—';$('mainRepeatStat').textContent='—';$('reentryStat').textContent='—';
+
+ const adj=new Map(),nodePoint=new Map();
+ edges.forEach((e,i)=>{nodePoint.set(e.ak,e.a);nodePoint.set(e.bk,e.b);for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){if(!adj.has(u))adj.set(u,[]);adj.get(u).push({id:i,to:v,length:e.length})}});
+ const coverageNodes=new Set();edges.forEach(e=>{if(e.required){coverageNodes.add(e.ak);coverageNodes.add(e.bk)}});
+ const nearest=p=>{let best=null,bd=Infinity;for(const k of coverageNodes){const q=nodePoint.get(k),d=distance(p,q);if(d<bd){bd=d;best=k}}return best};
+ const start=nearest(startLatLng),mode=finishMode();if(!start){setStatus('No required coverage node is available near START.','error');return}
+
+ routeEdgeIds=[];const routeNodes=[start],edgeUses=new Map(),mainStreetUses=new Map(),coveredRequired=new Set(),completedClusters=new Set();let current=start,inEdge=null,lastCluster=-1;
+
+ function other(id,node){const e=edges[id];return e.ak===node?e.bk:e.ak}
  function bearing(a,b){const y=(b.lng-a.lng)*Math.cos((a.lat+b.lat)*Math.PI/360),x=b.lat-a.lat;return(Math.atan2(y,x)*180/Math.PI+360)%360}
- function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d}
- function turnPenalty(prevId,node,nextId){if(prevId===null)return 0;const pe=edges[prevId],ne=edges[nextId];if(pe.roundabout||ne.roundabout)return 0;const prevNode=other(prevId,node),nextNode=other(nextId,node),ang=angleDiff(bearing(nodePoint.get(prevNode),nodePoint.get(node)),bearing(nodePoint.get(node),nodePoint.get(nextNode))),deg=(adj.get(node)||[]).length;if(ang>165&&deg>1)return 5000;if(ang>135)return 1100;if(ang>105)return 420;if(ang>75)return 130;return 0}
- function clusterRemaining(cid){if(cid===null)return 0;let n=0;for(const id of requiredRemaining)if(edges[id].clusterId===cid)n++;return n}
- function transitionCost(node,prevId,id,active){const e=edges[id],name=normalizedRoadName(roadName(e.p));let c=e.length+turnPenalty(prevId,node,id);const uses=edgeUses.get(id)||0;if(e.mainConnector){const su=mainStreetUses.get(name)||0;c+=uses*700+su*380+(uses?250:0)}else if(uses)c+=uses*240;if(active!==null&&active>=0&&clusterRemaining(active)>0){if(e.required&&e.clusterId>=0&&e.clusterId!==active)c+=9000;if(e.mainConnector)c+=2200}if(e.clusterId>=0&&completedClusters.has(e.clusterId))c+=900;return c}
- function weightedPath(source,prevId,targetNodes,active=null){if(targetNodes.has(source))return{ids:[],cost:0,node:source};const dist=new Map(),prev=new Map(),q=[];const sk=source+'|'+(prevId===null?'x':prevId);dist.set(sk,0);q.push([0,source,prevId]);let found=null;while(q.length){q.sort((a,b)=>a[0]-b[0]);const [du,u,pid]=q.shift(),key=u+'|'+(pid===null?'x':pid);if(du!==dist.get(key))continue;if(targetNodes.has(u)){found={key,node:u,cost:du};break}for(const x of adj.get(u)||[]){const nd=du+transitionCost(u,pid,x.id,active),nk=x.to+'|'+x.id;if(nd<(dist.get(nk)??Infinity)){dist.set(nk,nd);prev.set(nk,{key,id:x.id,node:u});q.push([nd,x.to,x.id])}}}if(!found)return null;const ids=[];let k=found.key;while(k!==sk){const p=prev.get(k);if(!p)break;ids.unshift(p.id);k=p.key}return{ids,cost:found.cost,node:found.node}}
- function appendEdge(id){const e=edges[id],to=other(id,current),ang=inEdge===null?0:turnPenalty(inEdge,current,id);if(ang>=5000)routeQuality.uturns++;routeEdgeIds.push(id);edgeUses.set(id,(edgeUses.get(id)||0)+1);if(e.mainConnector){const name=normalizedRoadName(roadName(e.p)),before=mainStreetUses.get(name)||0;if(before>0)routeQuality.mainRepeats++;mainStreetUses.set(name,before+1)}if(e.required)requiredRemaining.delete(id);current=to;inEdge=id;routeNodes.push(current)}
+ function turnAngle(prevId,node,nextId){if(prevId===null)return 0;const a=other(prevId,node),b=other(nextId,node);return Math.abs((((bearing(nodePoint.get(a),nodePoint.get(node))-bearing(nodePoint.get(node),nodePoint.get(b)))+540)%360)-180)}
+ function turnCost(prevId,node,nextId){
+  if(prevId===null)return 0;const pe=edges[prevId],ne=edges[nextId];if(pe.roundabout||ne.roundabout)return 0;
+  const ang=turnAngle(prevId,node,nextId),deg=(adj.get(node)||[]).length;
+  if(ang>=165&&deg>1)return 12000;
+  if(ang>=140)return 2600;
+  if(ang>=110)return 700;
+  if(ang>=80)return 180;
+  return 0
+ }
+ function appendEdge(id){
+  const e=edges[id],to=other(id,current),tc=turnCost(inEdge,current,id);
+  if(tc>=12000)routeQuality.uturns++;
+  routeEdgeIds.push(id);edgeUses.set(id,(edgeUses.get(id)||0)+1);
+  if(e.mainConnector){const n=normalizedRoadName(roadName(e.p)),before=mainStreetUses.get(n)||0;if(before>0)routeQuality.mainRepeats++;mainStreetUses.set(n,before+1)}
+  if(e.required)coveredRequired.add(id);
+  current=to;inEdge=id;routeNodes.push(current)
+ }
  function appendPath(ids){for(const id of ids)appendEdge(id)}
- function incidentRemaining(cid){return(adj.get(current)||[]).filter(x=>requiredRemaining.has(x.id)&&(cid===null||edges[x.id].clusterId===cid))}
- function chooseIncident(list){let best=null,bc=Infinity;for(const x of list){const c=transitionCost(current,inEdge,x.id,activeCluster);if(c<bc){bc=c;best=x}}return best}
- function remainingClusterIds(){return[...new Set([...requiredRemaining].map(id=>edges[id].clusterId).filter(id=>id>=0))]}
- function chooseNextCluster(){const inc=incidentRemaining(null).filter(x=>edges[x.id].clusterId>=0);if(inc.length)return edges[chooseIncident(inc).id].clusterId;const cids=remainingClusterIds();if(!cids.length)return -1;let best=null,bc=Infinity;for(const cid of cids){const targets=new Set();for(const id of requiredRemaining){const e=edges[id];if(e.clusterId===cid){targets.add(e.ak);targets.add(e.bk)}}const p=weightedPath(current,inEdge,targets,null);if(p&&p.cost<bc){bc=p.cost;best={cid,p}}}if(best){appendPath(best.p.ids);return best.cid}return cids[0]}
- routeEdgeIds=[];let guard=0;while(requiredRemaining.size&&guard++<20000){if(activeCluster!==null&&activeCluster>=0&&clusterRemaining(activeCluster)===0){completedClusters.add(activeCluster);activeCluster=null}if(activeCluster===null)activeCluster=chooseNextCluster();if(activeCluster===-1){const spine=[...requiredRemaining].filter(id=>edges[id].clusterId<0);if(!spine.length){activeCluster=null;continue}const targets=new Set();spine.forEach(id=>{targets.add(edges[id].ak);targets.add(edges[id].bk)});const here=incidentRemaining(-1);if(here.length){appendEdge(chooseIncident(here).id);continue}const p=weightedPath(current,inEdge,targets,null);if(!p){setStatus('Could not reach the remaining main-street coverage.','error');return}appendPath(p.ids);continue}
- const here=incidentRemaining(activeCluster);if(here.length){appendEdge(chooseIncident(here).id);continue}const targets=new Set();for(const id of requiredRemaining){const e=edges[id];if(e.clusterId===activeCluster){targets.add(e.ak);targets.add(e.bk)}}if(!targets.size){completedClusters.add(activeCluster);activeCluster=null;continue}const p=weightedPath(current,inEdge,targets,activeCluster);if(!p){setStatus('Could not finish patrol pocket '+(activeCluster+1)+' without leaving the drivable network.','error');return}appendPath(p.ids)}
- if(requiredRemaining.size){setStatus('Route planner stopped before all required streets were covered.','error');return}
- // Chosen/return finish is applied only after all required coverage is complete. Auto-finish ends naturally where the final pocket completes.
- if(mode==='choose'||mode==='return'){const target=mode==='return'?start:nearest(finishLatLng);if(target&&target!==current){const p=weightedPath(current,inEdge,new Set([target]),null);if(!p){setStatus('Coverage completed, but the selected FINISH could not be reached.','error');return}appendPath(p.ids)}}
- routeCoords=densifyRoute(routeNodes.map(k=>nodePoint.get(k)),10);setRouteDistances();routeLine=L.polyline(routeCoords,{color:'#083bdb',weight:7,opacity:.82,lineJoin:'round'}).addTo(routeLayer);completedLine=L.polyline([],{color:'#94a3b8',weight:3,opacity:.07,lineJoin:'round'}).addTo(routeLayer);const finish=routeCoords.at(-1);if(startMarker)startMarker.setTooltipContent(mode==='return'?'START / FINISH':'START');if(mode==='auto')L.marker(finish).bindTooltip('FINISH',{permanent:true,direction:'top'}).addTo(routeLayer);
- const uniqueM=edges.filter(e=>e.required&&!e.synthetic).reduce((sum,e)=>sum+e.length,0),totalM=routeEdgeIds.reduce((sum,id)=>sum+edges[id].length,0),baselineM=2*uniqueM,counts=new Map(),byStreet=new Map();for(const id of routeEdgeIds)counts.set(id,(counts.get(id)||0)+1);for(const [id,n] of counts){const e=edges[id],extra=Math.max(0,n-(e.required?1:0))*e.length;if(extra)byStreet.set(roadName(e.p),(byStreet.get(roadName(e.p))||0)+extra)}const repeatM=[...byStreet.values()].reduce((a,b)=>a+b,0),worst=[...byStreet].sort((a,b)=>b[1]-a[1])[0];$('baselineMetric').textContent=(baselineM/1609.344).toFixed(2)+' mi';$('totalMetric').textContent=(totalM/1609.344).toFixed(2)+' mi';$('savingsMetric').textContent=(Math.max(0,baselineM-totalM)/1609.344).toFixed(2)+' mi';$('repeatMetric').textContent=(repeatM/1609.344).toFixed(2)+' mi';$('effMetric').textContent=(100*uniqueM/Math.max(1,totalM)).toFixed(1)+'%';$('repeatedStreetMetric').textContent=worst?worst[0]+' — '+(worst[1]/1609.344).toFixed(2)+' mi':'None';$('finishMetric').textContent=mode==='return'?'Returned to START':mode==='choose'?'Chosen FINISH':'Natural pocket FINISH';$('uturnStat').textContent=routeQuality.uturns;$('mainRepeatStat').textContent=routeQuality.mainRepeats;$('reverseBtn').disabled=mode!=='return';$('simulateBtn').disabled=false;$('gpsBtn').disabled=false;updateProgress(0);setStatus('Patrol route built: pockets are completed before leaving when practical, U-turns are heavily penalized, and repeated main-strip travel is discouraged.','good')
+
+ // Connector-only transition routing. It does not cut through an unfinished local
+ // pocket unless there is genuinely no connector-network route.
+ function transitionPath(source,prevId,targetNodes,allowLocal=false){
+  const dist=new Map(),prev=new Map(),q=[],sk=source+'|'+(prevId===null?'x':prevId);dist.set(sk,0);q.push([0,source,prevId]);
+  while(q.length){
+   q.sort((a,b)=>a[0]-b[0]);const [du,u,pid]=q.shift(),key=u+'|'+(pid===null?'x':pid);if(du!==dist.get(key))continue;
+   if(targetNodes.has(u)){const ids=[];let k=key;while(k!==sk){const p=prev.get(k);if(!p)break;ids.unshift(p.id);k=p.key}return{ids,cost:du,node:u}}
+   for(const x of adj.get(u)||[]){const e=edges[x.id];if(e.required&&e.clusterId>=0&&!allowLocal)continue;
+    let c=e.length+turnCost(pid,u,x.id);
+    const uses=edgeUses.get(x.id)||0;
+    if(e.mainConnector){const n=normalizedRoadName(roadName(e.p)),su=mainStreetUses.get(n)||0;c+=su*900+uses*450}
+    else if(uses)c+=uses*350;
+    if(e.roundabout)c*=.85;
+    const nd=du+c,nk=x.to+'|'+x.id;if(nd<(dist.get(nk)??Infinity)){dist.set(nk,nd);prev.set(nk,{key,id:x.id});q.push([nd,x.to,x.id])}}
+  }return null
+ }
+
+ // Local shortest paths used only inside a pocket.
+ function localShortest(cid,source){
+  const dist=new Map([[source,0]]),prev=new Map(),q=[[0,source]];
+  while(q.length){q.sort((a,b)=>a[0]-b[0]);const [du,u]=q.shift();if(du!==dist.get(u))continue;
+   for(const x of adj.get(u)||[]){const e=edges[x.id];if(e.clusterId!==cid)continue;const nd=du+e.length;if(nd<(dist.get(x.to)??Infinity)){dist.set(x.to,nd);prev.set(x.to,{node:u,id:x.id});q.push([nd,x.to])}}
+  }return{dist,prev}
+ }
+ function localPath(cid,a,b,cache){const key=a+'>'+b;if(cache.has(key))return cache.get(key);const r=localShortest(cid,a),ids=[];let k=b;if(!r.dist.has(b)){cache.set(key,null);return null}while(k!==a){const p=r.prev.get(k);if(!p){cache.set(key,null);return null}ids.unshift(p.id);k=p.node}const out={ids,cost:r.dist.get(b)};cache.set(key,out);return out}
+
+ // Exact/greedy terminal matching for one pocket only.
+ function pairPocket(cid,list,cache){
+  if(!list.length)return{cost:0,pairs:[]};
+  const d=(a,b)=>{const p=localPath(cid,a,b,cache);return p?p.cost:Infinity};
+  if(list.length<=16){const memo=new Map();function solve(mask){if(!mask)return{cost:0,pairs:[]};if(memo.has(mask))return memo.get(mask);let i=0;while(!(mask&(1<<i)))i++;let best={cost:Infinity,pairs:[]};for(let j=i+1;j<list.length;j++)if(mask&(1<<j)){const sub=solve(mask&~(1<<i)&~(1<<j)),cost=d(list[i],list[j])+sub.cost;if(cost<best.cost)best={cost,pairs:[[list[i],list[j]],...sub.pairs]}}memo.set(mask,best);return best}return solve((1<<list.length)-1)}
+  const left=[...list],pairs=[];while(left.length){const a=left.shift();let bi=0,bd=Infinity;for(let i=0;i<left.length;i++){const x=d(a,left[i]);if(x<bd){bd=x;bi=i}}pairs.push([a,left.splice(bi,1)[0]])}return{cost:pairs.reduce((sum,[a,b])=>sum+d(a,b),0),pairs}
+ }
+
+ // Build a complete open Chinese-Postman trail for exactly one pocket.
+ // The trail cannot leave the pocket before every required edge in it is covered.
+ function solvePocket(cid,entry){
+  const ids=patrolClusters[cid].filter(id=>edges[id].required),degree=new Map(),cache=new Map();
+  ids.forEach(id=>{const e=edges[id];degree.set(e.ak,(degree.get(e.ak)||0)+1);degree.set(e.bk,(degree.get(e.bk)||0)+1)});
+  const nodesIn=new Set([...degree.keys()]),boundary=[...nodesIn].filter(k=>(adj.get(k)||[]).some(x=>edges[x.id].clusterId!==cid));
+  const odd=[...degree].filter(([,n])=>n%2).map(([k])=>k),candidates=[...new Set([...boundary,...odd])].filter(k=>k!==entry);
+  if(!candidates.length)candidates.push(entry);
+  let best=null;
+  for(const target of candidates){
+   const terminals=new Set(odd);for(const k of [entry,target])terminals.has(k)?terminals.delete(k):terminals.add(k);
+   const list=[...terminals];if(list.length%2)continue;const plan=pairPocket(cid,list,cache);
+   // Returning to the same entry is allowed only as a last resort.
+   const closedPenalty=target===entry&&ids.length>2?1800:0;
+   if(!best||plan.cost+closedPenalty<best.score)best={target,plan,score:plan.cost+closedPenalty}
+  }
+  if(!best)return null;
+  const copies=ids.map(id=>({a:edges[id].ak,b:edges[id].bk,id}));
+  for(const [a,b] of best.plan.pairs){const p=localPath(cid,a,b,cache);if(!p)return null;for(const id of p.ids)copies.push({a:edges[id].ak,b:edges[id].bk,id})}
+  const multi=new Map();copies.forEach((c,copy)=>{for(const [u,v] of [[c.a,c.b],[c.b,c.a]]){if(!multi.has(u))multi.set(u,[]);multi.get(u).push({copy,to:v,id:c.id})}});
+  const used=new Set(),stack=[{node:entry,via:null}],walk=[];while(stack.length){const top=stack.at(-1);let list=multi.get(top.node)||[],next=null,bestScore=Infinity;
+   for(const x of list){if(used.has(x.copy))continue;const sc=turnCost(stack.length>1?stack.at(-1).via:null,top.node,x.id)+(edgeUses.get(x.id)||0)*120;if(sc<bestScore){bestScore=sc;next=x}}
+   if(next){used.add(next.copy);stack.push({node:next.to,via:next.id,copy:next.copy})}else walk.push(stack.pop())
+  }
+  walk.reverse();if(used.size!==copies.length)return null;
+  return{ids:walk.slice(1).map(x=>x.via),target:walk.at(-1).node}
+ }
+
+ function clusterTargets(cid){const set=new Set();for(const id of patrolClusters[cid]){const e=edges[id];set.add(e.ak);set.add(e.bk)}return set}
+ function chooseNextPocket(){
+  const remaining=[];for(let cid=0;cid<patrolClusters.length;cid++)if(!completedClusters.has(cid)&&patrolClusters[cid].some(id=>edges[id].required&&!coveredRequired.has(id)))remaining.push(cid);
+  if(!remaining.length)return null;
+  let best=null;
+  for(const cid of remaining){
+   const targets=clusterTargets(cid);let p=transitionPath(current,inEdge,targets,false);if(!p)p=transitionPath(current,inEdge,targets,true);
+   if(p&&(!best||p.cost<best.p.cost))best={cid,p}
+  }
+  return best
+ }
+
+ // PHASE 1 — complete each local patrol pocket as an indivisible unit.
+ let guard=0;while(guard++<patrolClusters.length+20){
+  const next=chooseNextPocket();if(!next)break;
+  appendPath(next.p.ids);
+  if(completedClusters.has(next.cid))routeQuality.reentries++;
+  const plan=solvePocket(next.cid,current);if(!plan){setStatus('Could not produce a continuous route inside patrol pocket '+(next.cid+1)+'.','error');return}
+  appendPath(plan.ids);completedClusters.add(next.cid);lastCluster=next.cid;
+ }
+
+ // PHASE 2 — cover any required connector/main-strip segments not naturally
+ // covered while moving between pockets. Work them as one continuous cleanup sweep.
+ const remainingMain=()=>edges.map((e,id)=>e.required&&e.clusterId<0&&!coveredRequired.has(id)?id:null).filter(id=>id!==null);
+ guard=0;while(remainingMain().length&&guard++<5000){
+  const inc=(adj.get(current)||[]).filter(x=>remainingMain().includes(x.id));
+  if(inc.length){let best=inc[0],bc=Infinity;for(const x of inc){const c=x.length+turnCost(inEdge,current,x.id)+(edgeUses.get(x.id)||0)*700;if(c<bc){bc=c;best=x}}appendEdge(best.id);continue}
+  const targets=new Set();for(const id of remainingMain()){targets.add(edges[id].ak);targets.add(edges[id].bk)}
+  let p=transitionPath(current,inEdge,targets,false);if(!p)p=transitionPath(current,inEdge,targets,true);
+  if(!p){setStatus('Could not reach the remaining connector-street coverage.','error');return}appendPath(p.ids)
+ }
+
+ // Verify every required edge is covered.
+ const missed=edges.map((e,id)=>e.required&&!coveredRequired.has(id)?id:null).filter(id=>id!==null);
+ if(missed.length){setStatus('Route planner stopped with '+missed.length+' required segments uncovered.','error');return}
+
+ // Apply explicit finish only after all coverage is complete. Auto-finish ends
+ // naturally at the final completed pocket/connector segment.
+ if(mode==='choose'||mode==='return'){const target=mode==='return'?start:nearest(finishLatLng);if(target&&target!==current){let p=transitionPath(current,inEdge,new Set([target]),false);if(!p)p=transitionPath(current,inEdge,new Set([target]),true);if(!p){setStatus('Coverage completed, but the selected FINISH could not be reached.','error');return}appendPath(p.ids)}}
+
+ routeCoords=densifyRoute(routeNodes.map(k=>nodePoint.get(k)),10);setRouteDistances();
+ routeLine=L.polyline(routeCoords,{color:'#083bdb',weight:7,opacity:.82,lineJoin:'round'}).addTo(routeLayer);
+ completedLine=L.polyline([],{color:'#94a3b8',weight:3,opacity:.07,lineJoin:'round'}).addTo(routeLayer);
+ const finish=routeCoords.at(-1);if(startMarker)startMarker.setTooltipContent(mode==='return'?'START / FINISH':'START');if(mode==='auto')L.marker(finish).bindTooltip('FINISH',{permanent:true,direction:'top'}).addTo(routeLayer);
+
+ const uniqueM=edges.filter(e=>e.required&&!e.synthetic).reduce((sum,e)=>sum+e.length,0),totalM=routeEdgeIds.reduce((sum,id)=>sum+edges[id].length,0),baselineM=2*uniqueM,counts=new Map(),byStreet=new Map();
+ for(const id of routeEdgeIds)counts.set(id,(counts.get(id)||0)+1);
+ for(const [id,n] of counts){const e=edges[id],extra=Math.max(0,n-(e.required?1:0))*e.length;if(extra)byStreet.set(roadName(e.p),(byStreet.get(roadName(e.p))||0)+extra)}
+ const repeatM=[...byStreet.values()].reduce((a,b)=>a+b,0),worst=[...byStreet].sort((a,b)=>b[1]-a[1])[0];
+ $('baselineMetric').textContent=(baselineM/1609.344).toFixed(2)+' mi';
+ $('totalMetric').textContent=(totalM/1609.344).toFixed(2)+' mi';
+ $('savingsMetric').textContent=(Math.max(0,baselineM-totalM)/1609.344).toFixed(2)+' mi';
+ $('repeatMetric').textContent=(repeatM/1609.344).toFixed(2)+' mi';
+ $('effMetric').textContent=(100*uniqueM/Math.max(1,totalM)).toFixed(1)+'%';
+ $('repeatedStreetMetric').textContent=worst?worst[0]+' — '+(worst[1]/1609.344).toFixed(2)+' mi':'None';
+ $('finishMetric').textContent=mode==='return'?'Returned to START':mode==='choose'?'Chosen FINISH':'Natural patrol FINISH';
+ $('uturnStat').textContent=routeQuality.uturns;$('mainRepeatStat').textContent=routeQuality.mainRepeats;$('reentryStat').textContent=routeQuality.reentries;
+ $('reverseBtn').disabled=mode!=='return';$('simulateBtn').disabled=false;$('gpsBtn').disabled=false;updateProgress(0);
+ setStatus('Strict patrol route built: each pocket is completed before departure, connector reuse is penalized, and automatic routes finish naturally.','good')
 }
 function densifyRoute(points,step){if(points.length<2)return points.slice();const out=[points[0]];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.max(1,Math.ceil(distance(a,b)/step));for(let j=1;j<=n;j++)out.push(interp(a,b,j/n))}return out}
 function setRouteDistances(){routeCum=[0];for(let i=1;i<routeCoords.length;i++)routeCum.push(routeCum.at(-1)+distance(routeCoords[i-1],routeCoords[i]))}
