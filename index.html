@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.4</title>
+  <title>Patrol Route v0.18.5</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,10 +22,10 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.4</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.5</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes streets into loop/block groups and bridge/spur roads. Roundabout-only feeder corridors can be suppressed automatically, while Edit Roads remains available as a manual override.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes streets into loop/block groups and bridge/spur roads. Unneeded roundabout/junction corridors are now removed from the routing graph before block decomposition when required coverage remains connected without them.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
 <button id="editRoadModeBtn" class="secondary" disabled style="margin-top:8px">Edit Roads: OFF</button>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
   <button id="deleteRoadBtn" class="secondary" disabled>Delete Selected Roads</button>
@@ -36,7 +36,7 @@
 <div id="roadSelectionText" class="progress-text" style="margin-top:6px">No roads selected</div>
 </section>
     <section class="card"><h2>Route status</h2><div id="status" class="status">Adjust the boundary, choose START, then load roads.</div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div><div id="progressText" class="progress-text">Route not started</div><button id="routeBtn" disabled>Build Optimized Route</button><button id="reverseBtn" class="secondary" disabled>Reverse Route</button><button id="simulateBtn" class="secondary" disabled>Simulate Drive</button><button id="gpsBtn" class="secondary" disabled>Use Live GPS</button></section>
-    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Suppressed junction feeders</span><b id="feederStat">—</b><span>Loop / block groups</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Block revisits</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Pruned branch savings</span><b id="prunedBranchStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
+    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Excluded junction corridors</span><b id="feederStat">—</b><span>Loop / block groups</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Block revisits</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Pruned branch savings</span><b id="prunedBranchStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
     <section class="card"><h2>Route efficiency</h2><div class="stats"><span>Unique coverage</span><b id="uniqueMetric">—</b><span>Baseline double-back</span><b id="baselineMetric">—</b><span>Optimized route</span><b id="totalMetric">—</b><span>Miles saved</span><b id="savingsMetric">—</b><span>Repeated travel</span><b id="repeatMetric">—</b><span>Efficiency</span><b id="effMetric">—</b><span>Most repeated street</span><b id="repeatedStreetMetric">—</b><span>Bridge-repeat floor</span><b id="bridgeFloorMetric">—</b><span>Above bridge floor</span><b id="avoidableMetric">—</b><span>Optimized FINISH</span><b id="finishMetric">—</b></div></section>
   </aside>
   <div id="map"></div>
@@ -120,8 +120,9 @@ async function loadRoads(){try{if(!boundary)throw Error('Draw a patrol boundary 
 keepStartComponent();
 if(typeof rebuildSemanticGraph!=='function')throw new Error('Semantic graph rebuild function failed to initialize.');
 rebuildSemanticGraph();
+const autoExcluded=excludeUnneededJunctionCorridors();
 renderGraph();
-updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded. Turn on Edit Roads to remove streets, or build the route.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
+updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded.'+(autoExcluded?' Automatically excluded '+autoExcluded+' unneeded roundabout/junction corridor segment'+(autoExcluded===1?'':'s')+'.':'')+' Turn on Edit Roads for manual adjustments, or build the route.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
 function finishMode(){return document.querySelector('input[name=finishMode]:checked').value}
 function keepStartComponent(){
  const original=components.length;
@@ -169,6 +170,90 @@ function rebuildSemanticGraph(){
  }));
 
  return nodes
+}
+
+
+function excludeUnneededJunctionCorridors(){
+ // Remove roundabout + feeder/approach corridor edges ONLY when doing so does not
+ // disconnect any required coverage from START. This mirrors manual deletion,
+ // but keeps a corridor if it is actually needed as a transit bridge.
+
+ const candidateIds=new Set();
+ edges.forEach((e,id)=>{
+  if(e.roundabout||e.roundaboutApproach||e.junctionFeeder)candidateIds.add(id)
+ });
+ if(!candidateIds.size){suppressedFeeders=0;return 0}
+
+ const requiredIds=edges.map((e,id)=>e.required?id:null).filter(id=>id!==null);
+ if(!requiredIds.length){suppressedFeeders=0;return 0}
+
+ // Determine START's nearest node using the current graph.
+ const nodes=new Map();
+ edges.forEach((e,id)=>{
+  for(const [k,p] of [[e.ak,e.a],[e.bk,e.b]]){
+   if(!nodes.has(k))nodes.set(k,p)
+  }
+ });
+ let startNode=null,best=Infinity;
+ for(const [k,p] of nodes){
+  const d=distance(startLatLng,p);
+  if(d<best){best=d;startNode=k}
+ }
+ if(!startNode){suppressedFeeders=0;return 0}
+
+ function requiredReachableWithout(removeSet){
+  const g=new Map();
+  edges.forEach((e,id)=>{
+   if(removeSet.has(id))return;
+   for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){
+    if(!g.has(u))g.set(u,[]);
+    g.get(u).push(v)
+   }
+  });
+
+  const seen=new Set([startNode]),stack=[startNode];
+  while(stack.length){
+   const u=stack.pop();
+   for(const v of g.get(u)||[])if(!seen.has(v)){seen.add(v);stack.push(v)}
+  }
+
+  for(const id of requiredIds){
+   if(removeSet.has(id))continue;
+   const e=edges[id];
+   if(!seen.has(e.ak)&&!seen.has(e.bk))return false
+  }
+  return true
+ }
+
+ // Test the entire candidate corridor first.
+ if(!requiredReachableWithout(candidateIds)){
+  // Corridor is needed somewhere. Remove only safe leaf pieces greedily.
+  const safe=new Set();
+  for(const id of candidateIds){
+   const trial=new Set([...safe,id]);
+   if(requiredReachableWithout(trial))safe.add(id)
+  }
+  candidateIds.clear();
+  for(const id of safe)candidateIds.add(id)
+ }
+
+ if(!candidateIds.size){suppressedFeeders=0;return 0}
+
+ const removed=edges.filter((_,id)=>candidateIds.has(id));
+ edges=edges.filter((_,id)=>!candidateIds.has(id));
+ suppressedFeeders=removed.length;
+
+ // Rebuild all node keys and semantic classifications against the reduced graph.
+ const rebuiltNodes=new Map(),key=p=>p.lat.toFixed(5)+','+p.lng.toFixed(5);
+ edges.forEach((e,i)=>{
+  e.ak=key(e.a);e.bk=key(e.b);e.component=0;
+  if(!rebuiltNodes.has(e.ak))rebuiltNodes.set(e.ak,[]);
+  if(!rebuiltNodes.has(e.bk))rebuiltNodes.set(e.bk,[]);
+  rebuiltNodes.get(e.ak).push(i);rebuiltNodes.get(e.bk).push(i)
+ });
+ classifyPatrolSemantics(rebuiltNodes);
+
+ return removed.length
 }
 
 function buildGraph(fs,ring){const base=[],featureEnds=[];detectedLoops=0;topologyRepairs=0;boundaryExclusions=0;pairedCarriageways=0;for(let fid=0;fid<fs.length;fid++){const f=fs[fid],cs=f.geometry.coordinates;if(cs.length<2)continue;const raw=[],clipped=[];let totalLength=0,insideLength=0;for(let i=1;i<cs.length;i++){const a=L.latLng(cs[i-1][1],cs[i-1][0]),b=L.latLng(cs[i][1],cs[i][0]),len=distance(a,b);totalLength+=len;for(const [p,q] of clipSegmentToBoundary(a,b,ring)){const part=distance(p,q);if(part>.15){clipped.push({a:p,b:q});insideLength+=part}}raw.push({a,b})}if(!clipped.length)continue;const partial=insideLength<totalLength-1,shortPartial=partial&&(totalLength<150||insideLength<25);if(shortPartial){boundaryExclusions++;continue}const first=clipped[0].a,last=clipped.at(-1).b,loop=f.properties.IS_LOOP==='Y'||distance(first,last)<=18;if(loop)detectedLoops++;else featureEnds.push({p:first,fid,props:f.properties},{p:last,fid,props:f.properties});for(const part of clipped)base.push({a:part.a,b:part.b,p:f.properties,fid,loop,cuts:[0,1]})}
@@ -369,7 +454,10 @@ function classifyPatrolSemantics(nodes){
   if(force||(total>=220&&branch.size>=2))for(const id of ids)edges[id].mainConnector=true
  }
 
- // ROUNDABOUT / JUNCTION FEEDER CORRIDOR SUPPRESSION
+ // ROUNDABOUT / JUNCTION FEEDER CORRIDOR CANDIDATES
+ // Mark short main-connector chains that serve only a roundabout/junction.
+ // They are not removed here. Final exclusion happens after semantic classification,
+ // where connectivity to required coverage can be tested safely.
  {
   const graph=new Map();
   edges.forEach((e,id)=>{
@@ -382,74 +470,58 @@ function classifyPatrolSemantics(nodes){
   const roundNodes=new Set();
   edges.forEach(e=>{if(e.roundabout){roundNodes.add(e.ak);roundNodes.add(e.bk)}});
 
-  const visitedStarts=new Set();
-
-  function localRequiredBranchAt(node,excludeId){
+  function localRequiredBranchAt(node,excludeIds){
    return (graph.get(node)||[]).some(x=>{
-    if(x.id===excludeId)return false;
+    if(excludeIds.has(x.id))return false;
     const e=edges[x.id];
     return e && e.required && !e.mainConnector && !e.roundabout && !e.roundaboutApproach;
    })
   }
 
+  const visited=new Set();
+
   for(const rn of roundNodes){
    for(const first of graph.get(rn)||[]){
-    if(visitedStarts.has(first.id))continue;
+    if(visited.has(first.id))continue;
     const e0=edges[first.id];
     if(!e0||e0.roundabout||e0.roundaboutApproach||!e0.mainConnector)continue;
 
     const chain=[];
-    let total=0;
-    let prevNode=rn;
-    let currentEdge=first.id;
-    let currentNode=first.to;
-    let valid=true;
+    const chainSet=new Set();
+    let total=0,currentEdge=first.id,currentNode=first.to,valid=true;
 
     while(true){
      const e=edges[currentEdge];
      if(!e||!e.mainConnector||e.roundabout||e.roundaboutApproach){valid=false;break}
 
-     chain.push(currentEdge);
-     visitedStarts.add(currentEdge);
+     chain.push(currentEdge);chainSet.add(currentEdge);visited.add(currentEdge);
      total+=e.length;
-
-     // Keep this conservative. Do not suppress long arterial runs.
      if(total>420){valid=false;break}
 
-     // Any required local street branching off this feeder means the corridor
-     // still serves patrol coverage and must remain required.
-     if(localRequiredBranchAt(currentNode,currentEdge)){valid=false;break}
+     if(localRequiredBranchAt(currentNode,chainSet)){valid=false;break}
 
-     const nexts=(graph.get(currentNode)||[]).filter(x=>x.id!==currentEdge);
+     const nexts=(graph.get(currentNode)||[]).filter(x=>!chainSet.has(x.id)&&x.id!==currentEdge);
 
-     // Stop at a real junction / end of this simple feeder chain.
+     // At a true fork/intersection, stop. We only want a simple feeder chain.
      if(nexts.length!==1)break;
 
      const next=nexts[0],ne=edges[next.id];
      if(!ne||!ne.mainConnector||ne.roundabout||ne.roundaboutApproach)break;
 
-     prevNode=currentNode;
      currentNode=next.to;
      currentEdge=next.id
     }
 
     if(!valid||!chain.length)continue;
 
-    // Only suppress when the far end does NOT immediately continue into required
-    // local coverage. This keeps residential/main roads with side-street duties.
     const farHasLocal=(graph.get(currentNode)||[]).some(x=>{
-     if(chain.includes(x.id))return false;
+     if(chainSet.has(x.id))return false;
      const e=edges[x.id];
      return e && e.required && !e.mainConnector && !e.roundabout && !e.roundaboutApproach
     });
     if(farHasLocal)continue;
 
-    for(const id of chain){
-     const e=edges[id];
-     e.junctionFeeder=true;
-     e.required=false;
-     suppressedFeeders++
-    }
+    for(const id of chain)edges[id].junctionFeeder=true
    }
   }
  }
@@ -637,7 +709,7 @@ function renderGraph(){
   const weight=selected?8:round?4:main?4:optional?3:5;
   const dash=selected?null:round?'3 5':osm?'7 5':optional?'4 5':null;
   const layer=L.polyline([e.a,e.b],{color,weight,opacity:selected?1:optional?.5:.86,dashArray:dash,interactive:true})
-   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':feeder?'Junction feeder — transit only':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
+   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':feeder?'Junction feeder — retained for connectivity':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
    .addTo(roadLayer);
   layer.on('click',ev=>{
    if(!editRoadMode)return;

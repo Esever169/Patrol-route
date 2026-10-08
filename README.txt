@@ -1,28 +1,29 @@
-PATROL ROUTE v0.18.4 — JUNCTION-FEEDER SUPPRESSION + LOCAL BLOCK CONTINUITY
+PATROL ROUTE v0.18.5 — PRE-ROUTING JUNCTION CORRIDOR EXCLUSION
 
-Automatic main-strip / roundabout feeder suppression:
-- Starts from detected roundabout nodes.
-- Walks outward only through MAIN CONNECTOR edges.
-- Suppresses only short/simple feeder chains (maximum 420 m).
-- Any required local side street branching from the chain cancels suppression.
-- A feeder is also retained if its far end immediately serves required local coverage.
-- Suppressed feeder edges remain drivable transit, but are no longer mandatory coverage.
-- Adds Suppressed junction feeders diagnostic.
-- Branch pruning, bridge-tree need calculation, and bridge-repeat floor all ignore
-  junction-only feeder edges.
+Why this change:
+v0.18.4 only changed roundabout feeder corridors to non-required coverage.
+Those roads still remained in the routing graph and could distort block/bridge
+topology or prevent the block solver from finding a continuous route.
+Manual deletion worked because it removed the roads before topology was built.
 
-In-block traversal polish:
-- Keeps the v0.18 block/loop topology engine.
-- Right-turn preference remains only a tie-breaker.
-- Adds a local-continuity score favoring choices that lead toward nearby unfinished
-  required edges in the same block.
-- Strongly favors immediately adjacent required edges so parallel fingers and
-  small subloops are completed before crossing to another part of the block.
+v0.18.5 now mirrors that behavior automatically:
+- Detects roundabout, roundabout-approach, and junction-feeder corridor candidates.
+- Before route optimization, tests whether required coverage remains connected
+  from START if those candidate edges are removed.
+- If safe, removes the entire unnecessary corridor from the routing graph.
+- If the full removal would disconnect required coverage, greedily removes only
+  the safe candidate pieces and retains whatever is genuinely needed for transit.
+- Rebuilds graph keys and semantic classification after exclusion.
+- The block/loop engine then sees the same reduced topology that manual deletion
+  would have produced.
+- The existing Edit Roads mode remains available as a manual override.
 
 Preserved:
-- v0.18.2 reliable Edit Roads mode
-- v0.18.3 roundabout approach logic
+- v0.18 block/loop traversal
 - live subtree pruning
+- roundabout topology detection
+- in-block local continuity scoring
+- right-turn loop tie-breaking
 - bridge-repeat floor metrics
 - county GIS + OSM supplement
 - divided-road handling
