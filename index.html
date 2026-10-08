@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18</title>
+  <title>Patrol Route v0.18.1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,12 +22,20 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.1</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes the street network into loop/block groups and bridge/spur roads. It clears each loop as a unit, clears attached dead ends when encountered, and moves progressively through the block tree.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes the street network into loop/block groups and bridge/spur roads. It clears each loop as a unit, clears attached dead ends when encountered, and moves progressively through the block tree.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+  <button id="deleteRoadBtn" class="secondary" disabled>Delete Selected Roads</button>
+  <button id="clearRoadSelectionBtn" class="secondary" disabled>Clear Selection</button>
+  <button id="undoRoadDeleteBtn" class="secondary" disabled>Undo Last Delete</button>
+  <button id="restoreRoadsBtn" class="secondary" disabled>Restore All Roads</button>
+</div>
+<div id="roadSelectionText" class="progress-text" style="margin-top:6px">No roads selected</div>
+</section>
     <section class="card"><h2>Route status</h2><div id="status" class="status">Adjust the boundary, choose START, then load roads.</div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div><div id="progressText" class="progress-text">Route not started</div><button id="routeBtn" disabled>Build Optimized Route</button><button id="reverseBtn" class="secondary" disabled>Reverse Route</button><button id="simulateBtn" class="secondary" disabled>Simulate Drive</button><button id="gpsBtn" class="secondary" disabled>Use Live GPS</button></section>
-    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Loop / block groups</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Block revisits</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
+    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Loop / block groups</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Block revisits</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Pruned branch savings</span><b id="prunedBranchStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
     <section class="card"><h2>Route efficiency</h2><div class="stats"><span>Unique coverage</span><b id="uniqueMetric">—</b><span>Baseline double-back</span><b id="baselineMetric">—</b><span>Optimized route</span><b id="totalMetric">—</b><span>Miles saved</span><b id="savingsMetric">—</b><span>Repeated travel</span><b id="repeatMetric">—</b><span>Efficiency</span><b id="effMetric">—</b><span>Most repeated street</span><b id="repeatedStreetMetric">—</b><span>Bridge-repeat floor</span><b id="bridgeFloorMetric">—</b><span>Above bridge floor</span><b id="avoidableMetric">—</b><span>Optimized FINISH</span><b id="finishMetric">—</b></div></section>
   </aside>
   <div id="map"></div>
@@ -44,7 +52,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,att
 const drawn=new L.FeatureGroup().addTo(map), roadLayer=L.layerGroup().addTo(map), gapLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map), markerLayer=L.layerGroup().addTo(map);
 const shapeStyle={color:'#ffd34e',weight:3,fillOpacity:.06};
 const drawControl=new L.Control.Draw({position:'topright',draw:{polygon:{shapeOptions:shapeStyle},rectangle:{shapeOptions:shapeStyle},circle:{shapeOptions:shapeStyle,showRadius:true,metric:true,feet:true},polyline:false,circlemarker:false,marker:false},edit:{featureGroup:drawn,remove:false}}).addTo(map);
-let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0};
+let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],selectedRoadIds=new Set(),deletedRoadHistory=[],deletedRoadArchive=[],routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0,prunedBranchSaved:0};
 const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,-82.5348],[28.4848,-82.5524]],{color:'#ffd34e',weight:3,fillOpacity:.06}).addTo(drawn); boundary=defaultBoundary;
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
@@ -60,6 +68,11 @@ for(const fn of CRITICAL_FUNCTIONS){
 }
 
 $('loadBtn').onclick=loadRoads;
+$('deleteRoadBtn').onclick=deleteSelectedRoads;
+$('clearRoadSelectionBtn').onclick=clearRoadSelection;
+$('undoRoadDeleteBtn').onclick=undoRoadDelete;
+$('restoreRoadsBtn').onclick=restoreAllRoads;
+
 $('routeBtn').onclick=async()=>{
   const btn=$('routeBtn');
   btn.disabled=true;
@@ -78,7 +91,7 @@ $('routeBtn').onclick=async()=>{
 };
 $('reverseBtn').onclick=reverseRoute; $('simulateBtn').onclick=simulate; $('gpsBtn').onclick=liveGps; $('includeNonLocal').onchange=()=>features.length&&loadRoads();
 function setStatus(t,c=''){$('status').textContent=t;$('status').className='status '+c}
-function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','bridgeFloorMetric','avoidableMetric','uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat','cleanupStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
+function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;selectedRoadIds.clear();deletedRoadHistory=[];deletedRoadArchive=[];$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','bridgeFloorMetric','avoidableMetric','uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat','cleanupStat','prunedBranchStat'])if($(id))$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;if($('deleteRoadBtn'))$('deleteRoadBtn').disabled=true;if($('clearRoadSelectionBtn'))$('clearRoadSelectionBtn').disabled=true;if($('undoRoadDeleteBtn'))$('undoRoadDeleteBtn').disabled=true;if($('restoreRoadsBtn'))$('restoreRoadsBtn').disabled=true;if($('roadSelectionText'))$('roadSelectionText').textContent='No roads selected';}
 function boundaryRing(){if(boundary instanceof L.Circle){const c=boundary.getLatLng(),r=boundary.getRadius(),pts=[];for(let i=0;i<72;i++){const a=i*2*Math.PI/72,dy=Math.sin(a)*r/R*180/Math.PI,dx=Math.cos(a)*r/(R*Math.cos(c.lat*Math.PI/180))*180/Math.PI;pts.push(L.latLng(c.lat+dy,c.lng+dx))}return pts}return boundary.getLatLngs()[0]}
 function pointInPoly(p,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.lat>p.lat)!=(b.lat>p.lat))&&(p.lng<(b.lng-a.lng)*(p.lat-a.lat)/(b.lat-a.lat)+a.lng))inside=!inside;}return inside}
 function segmentCrossesBoundary(a,b,ring){if(pointInPoly(a,ring)||pointInPoly(b,ring))return true;for(let i=0,j=ring.length-1;i<ring.length;j=i++)if(intersection({a,b},{a:ring[j],b:ring[i]}))return true;return false}
@@ -94,7 +107,7 @@ keepStartComponent();
 if(typeof rebuildSemanticGraph!=='function')throw new Error('Semantic graph rebuild function failed to initialize.');
 rebuildSemanticGraph();
 renderGraph();
-updateStats();setStatus('Connected streets loaded. Coverage routing is ready.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
+updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded. Tap roads to select them for deletion, or build the route.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
 function finishMode(){return document.querySelector('input[name=finishMode]:checked').value}
 function keepStartComponent(){
  const original=components.length;
@@ -348,7 +361,95 @@ function classifyPatrolSemantics(nodes){
 function intersection(s,t){const x1=s.a.lng,y1=s.a.lat,x2=s.b.lng,y2=s.b.lat,x3=t.a.lng,y3=t.a.lat,x4=t.b.lng,y4=t.b.lat,d=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);if(Math.abs(d)<1e-12)return null;const a=x1*y2-y1*x2,b=x3*y4-y3*x4;const x=(a*(x3-x4)-(x1-x2)*b)/d,y=(a*(y3-y4)-(y1-y2)*b)/d;const tt=Math.abs(x2-x1)>Math.abs(y2-y1)?(x-x1)/(x2-x1):(y-y1)/(y2-y1),u=Math.abs(x4-x3)>Math.abs(y4-y3)?(x-x3)/(x4-x3):(y-y3)/(y4-y3);return tt>=0&&tt<=1&&u>=0&&u<=1?{t:tt,u,point:L.latLng(y,x)}:null}
 function projectToSegment(p,a,b){const lat=(a.lat+b.lat)/2*Math.PI/180,sx=Math.cos(lat)*111320,sy=110540,ax=a.lng*sx,ay=a.lat*sy,bx=b.lng*sx,by=b.lat*sy,px=p.lng*sx,py=p.lat*sy,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy))),q=L.latLng((ay+t*dy)/sy,(ax+t*dx)/sx);return{t,d:distance(p,q),q}}
 function interp(a,b,t){return L.latLng(a.lat+(b.lat-a.lat)*t,a.lng+(b.lng-a.lng)*t)}
-function renderGraph(){roadLayer.clearLayers();for(const e of edges){const optional=!e.required&&!e.synthetic,osm=e.p.SOURCE==='OSM',round=e.roundabout,main=e.mainConnector;const color=round?'#6d5bd0':main?'#52718f':optional?'#86a9c5':osm?'#f59e0b':'#2583d8',weight=round?4:main?4:optional?3:5,dash=round?'3 5':osm?'7 5':optional?'4 5':null;L.polyline([e.a,e.b],{color,weight,opacity:optional?.5:.86,dashArray:dash}).bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(round?'Roundabout / connector — not required coverage':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')).addTo(roadLayer)}}
+function updateRoadSelectionUi(){
+ const count=selectedRoadIds.size;
+ if($('roadSelectionText'))$('roadSelectionText').textContent=count?count+' road segment'+(count===1?'':'s')+' selected':'No roads selected';
+ if($('deleteRoadBtn'))$('deleteRoadBtn').disabled=!count;
+ if($('clearRoadSelectionBtn'))$('clearRoadSelectionBtn').disabled=!count;
+ if($('undoRoadDeleteBtn'))$('undoRoadDeleteBtn').disabled=!deletedRoadHistory.length;
+ if($('restoreRoadsBtn'))$('restoreRoadsBtn').disabled=!deletedRoadArchive.length
+}
+
+function toggleRoadSelection(id){
+ const e=edges[id];if(!e)return;
+ // Select the visible county/OSM road feature as a unit, not only one tiny graph edge.
+ const ids=[];
+ for(let i=0;i<edges.length;i++)if(edges[i]?.fid===e.fid)ids.push(i);
+ const allSelected=ids.every(i=>selectedRoadIds.has(i));
+ for(const i of ids)allSelected?selectedRoadIds.delete(i):selectedRoadIds.add(i);
+ renderGraph();updateRoadSelectionUi()
+}
+
+function renderGraph(){
+ roadLayer.clearLayers();
+ edges.forEach((e,id)=>{
+  const optional=!e.required&&!e.synthetic,osm=e.p.SOURCE==='OSM',round=e.roundabout,main=e.mainConnector,selected=selectedRoadIds.has(id);
+  const baseColor=round?'#6d5bd0':main?'#52718f':optional?'#86a9c5':osm?'#f59e0b':'#2583d8';
+  const color=selected?'#d92d20':baseColor;
+  const weight=selected?8:round?4:main?4:optional?3:5;
+  const dash=selected?null:round?'3 5':osm?'7 5':optional?'4 5':null;
+  const layer=L.polyline([e.a,e.b],{color,weight,opacity:selected?1:optional?.5:.86,dashArray:dash,interactive:true})
+   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(round?'Roundabout / connector — not required coverage':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
+   .addTo(roadLayer);
+  layer.on('click',()=>toggleRoadSelection(id))
+ });
+}
+
+function currentGraphComponentCount(){
+ const graph=new Map();
+ edges.forEach((e,i)=>{for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){if(!graph.has(u))graph.set(u,[]);graph.get(u).push(v)}});
+ const seen=new Set();let count=0;
+ for(const n of graph.keys()){
+  if(seen.has(n))continue;count++;
+  const st=[n];seen.add(n);
+  while(st.length){const u=st.pop();for(const v of graph.get(u)||[])if(!seen.has(v)){seen.add(v);st.push(v)}}
+ }
+ return count
+}
+
+function rebuildAfterRoadEdit(message){
+ selectedRoadIds.clear();
+ routeLayer.clearLayers();routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;
+ rebuildSemanticGraph();
+ renderGraph();
+ updateStats();
+ updateRoadSelectionUi();
+ $('reverseBtn').disabled=true;$('simulateBtn').disabled=true;$('gpsBtn').disabled=true;
+ $('routeBtn').disabled=!edges.length;
+ const cc=currentGraphComponentCount();
+ setStatus(message+(cc>1?' Warning: the remaining road graph now has '+cc+' disconnected components.':' Remaining road graph is connected.'),cc>1?'error':'good')
+}
+
+function deleteSelectedRoads(){
+ if(!selectedRoadIds.size)return;
+ const ids=[...selectedRoadIds].sort((a,b)=>a-b);
+ const removed=ids.map(id=>edges[id]).filter(Boolean);
+ if(!removed.length)return;
+ deletedRoadHistory.push(removed);
+ deletedRoadArchive.push(...removed);
+ const removeSet=new Set(ids);
+ edges=edges.filter((_,i)=>!removeSet.has(i));
+ rebuildAfterRoadEdit('Deleted '+removed.length+' selected road segment'+(removed.length===1?'':'s')+' from coverage and routing.')
+}
+
+function undoRoadDelete(){
+ const batch=deletedRoadHistory.pop();
+ if(!batch?.length)return;
+ edges.push(...batch);
+ const restoreSet=new Set(batch);
+ deletedRoadArchive=deletedRoadArchive.filter(e=>!restoreSet.has(e));
+ rebuildAfterRoadEdit('Restored the last deleted road selection.')
+}
+
+function restoreAllRoads(){
+ if(!deletedRoadArchive.length)return;
+ edges.push(...deletedRoadArchive);
+ deletedRoadArchive=[];deletedRoadHistory=[];
+ rebuildAfterRoadEdit('Restored all deleted roads.')
+}
+
+function clearRoadSelection(){selectedRoadIds.clear();renderGraph();updateRoadSelectionUi()}
+
 function diagnoseGaps(){gapLayer.clearLayers();gapRecords=[];if(components.length<2){$('gaps').textContent='The road graph is connected; no gap candidates.';return}const endpoints=components.map(c=>{const degree=new Map();c.edgeIds.forEach(id=>{const e=edges[id];degree.set(e.ak,(degree.get(e.ak)||0)+1);degree.set(e.bk,(degree.get(e.bk)||0)+1)});let list=[];for(const id of c.edgeIds){const e=edges[id];if(degree.get(e.ak)===1)list.push({p:e.a,name:roadName(e.p)});if(degree.get(e.bk)===1)list.push({p:e.b,name:roadName(e.p)})}if(!list.length)for(const id of c.edgeIds){const e=edges[id];list.push({p:e.a,name:roadName(e.p)},{p:e.b,name:roadName(e.p)})}return list});const pairs=[];for(let i=0;i<components.length;i++)for(let j=i+1;j<components.length;j++){let best=null;for(const a of endpoints[i])for(const b of endpoints[j]){const d=distance(a.p,b.p);if(!best||d<best.d)best={i,j,a,b,d}}pairs.push(best)}pairs.sort((a,b)=>a.d-b.d);const parent=components.map((_,i)=>i),find=x=>parent[x]===x?x:(parent[x]=find(parent[x]));const chosen=[];for(const p of pairs){const a=find(p.i),b=find(p.j);if(a!==b){parent[a]=b;chosen.push(p)}}const html=[];chosen.forEach((g,n)=>{const hit=findExcluded(g),feet=g.d*FT_PER_M,label='Gap '+(n+1)+': '+Math.round(feet)+' ft';const line=L.polyline([g.a.p,g.b.p],{color:'#ff7a18',weight:4,dashArray:'9 7',opacity:.95,interactive:true}).bindPopup(gapPopup(g,hit,feet)).addTo(gapLayer);const aMarker=L.circleMarker(g.a.p,{radius:6,color:'#fff',weight:2,fillColor:COLORS[g.i%COLORS.length],fillOpacity:1}).addTo(gapLayer),bMarker=L.circleMarker(g.b.p,{radius:6,color:'#fff',weight:2,fillColor:COLORS[g.j%COLORS.length],fillOpacity:1}).addTo(gapLayer);L.marker(interp(g.a.p,g.b.p,.5),{interactive:false,icon:L.divIcon({className:'gap-label',html:label,iconSize:null})}).addTo(gapLayer);line.on('click',()=>focusGap(n));gapRecords.push({line,aMarker,bMarker,g});html.push('<div class="gap" tabindex="0" role="button" data-gap="'+n+'" onclick="focusGap('+n+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();focusGap('+n+')}\"><b>'+label+' · C'+(g.i+1)+' ↔ C'+(g.j+1)+'</b>'+escapeHtml(g.a.name)+' ↔ '+escapeHtml(g.b.name)+'<br><span class="'+(hit?'yes':'no')+'">Excluded county segment: '+(hit?'YES — '+escapeHtml(roadName(hit.f.properties))+' ('+escapeHtml(exclusionReason(hit.f.properties))+'), '+Math.round(hit.d*FT_PER_M)+' ft from candidate':'No segment detected within 40 ft')+'</span><span class="gap-action">Zoom to and highlight gap →</span></div>')});$('gaps').innerHTML=html.join('')}
 function focusGap(index){const selected=gapRecords[index];if(!selected)return;gapRecords.forEach((r,i)=>{r.line.setStyle(i===index?{color:'#d92d20',weight:8,dashArray:'12 7',opacity:1}:{color:'#ff7a18',weight:4,dashArray:'9 7',opacity:.95});r.aMarker.setStyle({radius:i===index?9:6,weight:i===index?3:2});r.bMarker.setStyle({radius:i===index?9:6,weight:i===index?3:2})});document.querySelectorAll('.gap').forEach((el,i)=>el.classList.toggle('selected',i===index));const bounds=L.latLngBounds([selected.g.a.p,selected.g.b.p]).pad(1.8);map.fitBounds(bounds,{maxZoom:19,padding:[55,55],animate:true});selected.line.openPopup(interp(selected.g.a.p,selected.g.b.p,.5));setStatus('Focused on Gap '+(index+1)+'. This candidate remains diagnostic only and has not been connected.');}
 function findExcluded(g){let best=null;for(const f of excluded){const cs=f.geometry.coordinates;for(let i=1;i<cs.length;i++){const a=L.latLng(cs[i-1][1],cs[i-1][0]),b=L.latLng(cs[i][1],cs[i][0]);for(const p of [g.a.p,g.b.p,interp(g.a.p,g.b.p,.5)]){const d=projectToSegment(p,a,b).d;if(!best||d<best.d)best={f,d}}}}return best&&best.d<=12.192?best:null}
@@ -359,8 +460,8 @@ function buildRoute(){
  setStatus('Decomposing streets into loops, blocks, bridges and spurs…');
 
  routeLayer.clearLayers();progressIndex=0;
- routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0};
- for(const id of ['uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat','cleanupStat'])if($(id))$(id).textContent='—';
+ routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0,prunedBranchSaved:0};
+ for(const id of ['uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat','cleanupStat','prunedBranchStat'])if($(id))$(id).textContent='—';
 
  const adj=new Map(),nodePoint=new Map();
  edges.forEach((e,i)=>{
@@ -548,6 +649,27 @@ function buildRoute(){
  function finalChildOf(c){
   for(const link of activeChildren.get(c)||[])if(finalPath.has(link.to))return link;
   return null
+ }
+
+ function subtreeHasUncovered(compId){
+  const block=blocks[compId];
+  for(const id of block.edges)if(edges[id]?.required&&!coveredRequired.has(id))return true;
+  for(const link of activeChildren.get(compId)||[]){
+   if(edges[link.edgeId]?.required&&!coveredRequired.has(link.edgeId))return true;
+   if(subtreeHasUncovered(link.to))return true
+  }
+  return false
+ }
+
+ function subtreeRemainingMileage(compId){
+  let total=0;
+  const block=blocks[compId];
+  for(const id of block.edges)if(edges[id]?.required&&!coveredRequired.has(id))total+=edges[id].length;
+  for(const link of activeChildren.get(compId)||[]){
+   if(edges[link.edgeId]?.required&&!coveredRequired.has(link.edgeId))total+=edges[link.edgeId].length;
+   total+=subtreeRemainingMileage(link.to)
+  }
+  return total
  }
 
  // ---------- 3. BLOCK-INTERNAL OPEN POSTMAN SOLVER ----------
@@ -768,6 +890,19 @@ function buildRoute(){
    const node=nodesSeq[i];
    for(const link of byGateway.get(node)||[]){
     if(serviced.has(link.edgeId))continue;
+
+    // Coverage may already have been satisfied naturally while traversing this
+    // block/main corridor. If nothing remains in the child subtree, skip the
+    // entire bridge excursion instead of visiting it just because it was active
+    // when the block tree was first built.
+    const bridgeUncovered=edges[link.edgeId]?.required&&!coveredRequired.has(link.edgeId);
+    const childUncovered=subtreeHasUncovered(link.to);
+    if(!bridgeUncovered&&!childUncovered){
+     serviced.add(link.edgeId);
+     routeQuality.prunedBranchSaved+=2*(edges[link.edgeId]?.length||0);
+     continue
+    }
+
     serviced.add(link.edgeId);
     appendEdge(link.edgeId);
     if(!serviceComp(link.to,link.nodeThere))return false;
@@ -778,9 +913,16 @@ function buildRoute(){
 
   // Now leave along the one open final branch, never returning across it.
   if(finalLink){
-   serviced.add(finalLink.edgeId);
-   appendEdge(finalLink.edgeId);
-   if(!serviceComp(finalLink.to,finalLink.nodeThere))return false
+   const bridgeUncovered=edges[finalLink.edgeId]?.required&&!coveredRequired.has(finalLink.edgeId);
+   const childUncovered=subtreeHasUncovered(finalLink.to);
+   if(bridgeUncovered||childUncovered){
+    serviced.add(finalLink.edgeId);
+    appendEdge(finalLink.edgeId);
+    if(!serviceComp(finalLink.to,finalLink.nodeThere))return false
+   }else{
+    serviced.add(finalLink.edgeId);
+    routeQuality.prunedBranchSaved+=(edges[finalLink.edgeId]?.length||0)
+   }
   }
   return true
  }
@@ -931,9 +1073,10 @@ function buildRoute(){
  $('connectorCreditStat').textContent=routeQuality.connectorCredits;
  $('forcedTransitStat').textContent=0;
  $('cleanupStat').textContent=(routeQuality.cleanupSaved/1609.344).toFixed(2)+' mi';
+ $('prunedBranchStat').textContent=(routeQuality.prunedBranchSaved/1609.344).toFixed(2)+' mi';
 
  $('reverseBtn').disabled=mode!=='return';$('simulateBtn').disabled=false;$('gpsBtn').disabled=false;updateProgress(0);
- setStatus('Block/loop route built: loops are cleared as units, attached spurs are serviced when encountered, and bridge branches are returned only when topology requires it.','good')
+ setStatus('Block/loop route built: loops are cleared as units, already-satisfied bridge branches are pruned before travel, and attached spurs are serviced only while uncovered coverage remains.','good')
 }
 function densifyRoute(points,step){if(points.length<2)return points.slice();const out=[points[0]];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.max(1,Math.ceil(distance(a,b)/step));for(let j=1;j<=n;j++)out.push(interp(a,b,j/n))}return out}
 function setRouteDistances(){routeCum=[0];for(let i=1;i<routeCoords.length;i++)routeCum.push(routeCum.at(-1)+distance(routeCoords[i-1],routeCoords[i]))}

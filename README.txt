@@ -1,39 +1,35 @@
-PATROL ROUTE v0.18 — BLOCK / LOOP TRAVERSAL ENGINE
+PATROL ROUTE v0.18.1 — SUBTREE PRUNING + ROAD DELETION
 
-This version replaces the v0.17 geographic-zone sequencing model.
+Routing refinement:
+- Before entering any bridge/spur subtree, the route re-checks LIVE coverage state.
+- If the bridge and everything below it have already been satisfied naturally,
+  the entire excursion is skipped.
+- The same check is applied to the one open/final branch.
+- Adds Pruned branch savings diagnostic.
+- Intended to eliminate unnecessary main-strip trips such as driving to an already
+  satisfied roundabout and back.
 
-Core routing model:
-- Runs Tarjan bridge detection on the full drivable street graph.
-- Removing bridges produces maximal loop/block groups.
-- Bridge edges represent spurs, dead ends, and true connections between blocks.
-- The route traverses the resulting block tree from START.
-- Each loop/block is cleared as one unit before the route leaves it.
-- Attached bridge/spur subtrees are serviced when their gateway is encountered.
-- Return-to-START routes return from every bridge branch as topology requires.
-- Auto-finish selects one active leaf branch to remain open, avoiding an unnecessary
-  return along that final branch.
-- Chosen FINISH uses the block containing the requested finish point.
+Manual road editing:
+- Tap a displayed road to select/unselect it.
+- Selection applies to the displayed GIS/OSM feature, so a road feature's graph
+  segments highlight together.
+- Delete Selected Roads removes them from BOTH required coverage and routing.
+- Clear Selection cancels the current selection.
+- Undo Last Delete restores the most recent deletion batch.
+- Restore All Roads restores every manually deleted road.
+- After an edit, the graph semantics/statistics are rebuilt and the current route
+  is cleared. If the deletion disconnects the road graph, Route Status warns you.
 
-Loop behavior:
-- Each block is solved as an open/closed postman trail as appropriate.
-- Right-hand turns are a soft tie-breaker only inside loop traversal.
-- Required coverage always outranks the right-turn preference.
-
-Metrics:
-- Bridge-repeat floor: lower-bound repeat mileage forced specifically by required
-  graph bridges/spurs. This is intentionally labeled a floor, not a claim of the
-  complete mathematical CPP optimum.
-- Above bridge floor: repeated mileage beyond that unavoidable bridge lower bound.
-- Cleanup savings: redundant closed excursions removed after the route is built.
-
-Preserved:
-- Hernando County GIS road source
-- OSM supplement
-- divided-road mileage reduction
-- roundabout normalization
-- START / auto finish / chosen finish / return to START
+Preserved from v0.18:
+- bridge/spur detection
+- loop/block traversal
+- right-turn loop tie-breaking
+- bridge-repeat floor / above-floor metrics
+- Hernando County GIS + OSM supplement
+- divided-road and roundabout handling
+- START/FINISH modes
 - GPS and simulation
-- short redundant-excursion cleanup
+- safe short-excursion cleanup
 
 Deployment:
 Replace repository-root files and commit to main. Hard-refresh once after deployment.
