@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.17.2</title>
+  <title>Patrol Route v0.17.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.17.2</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.17.3</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app builds geographic patrol zones from branch/articulation structure, merges tiny islands, and treats completed-zone streets as last-resort transit rather than absolute walls.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
@@ -463,32 +463,256 @@ function buildRoute(){
  }
 
  function solveZone(cid,entry){
-  const ids=(patrolClusters[cid]||[]).filter(id=>edges[id]&&edges[id].required),degree=new Map(),cache=new Map();
-  if(!ids.length)return{ids:[],target:entry};
-  ids.forEach(id=>{const e=edges[id];degree.set(e.ak,(degree.get(e.ak)||0)+1);degree.set(e.bk,(degree.get(e.bk)||0)+1)});
-  const nodesIn=new Set([...degree.keys()]),boundary=[...nodesIn].filter(k=>(adj.get(k)||[]).some(x=>edges[x.id].clusterId!==cid));
-  const odd=[...degree].filter(([,n])=>n%2).map(([k])=>k),candidates=[...new Set([...boundary,...odd])].filter(k=>k!==entry);
-  if(!candidates.length)candidates.push(entry);
+  const requiredIds=(patrolClusters[cid]||[]).filter(id=>edges[id]&&edges[id].required);
+  if(!requiredIds.length)return{ids:[],target:entry};
+
+  // Build the set of required nodes for this zone.
+  const reqNodes=new Set();
+  for(const id of requiredIds){reqNodes.add(edges[id].ak);reqNodes.add(edges[id].bk)}
+
+  // Zone-internal connector search:
+  // - zone's own required streets are allowed
+  // - connector/main/roundabout/non-required streets are allowed
+  // - required local streets belonging to OTHER zones are forbidden
+  function zoneConnectorPath(a,targetSet){
+   const dist=new Map([[a,0]]),prev=new Map(),q=[[0,a]];
+   while(q.length){
+    q.sort((x,y)=>x[0]-y[0]);
+    const [du,u]=q.shift();if(du!==dist.get(u))continue;
+    if(targetSet.has(u)){
+     const ids=[];let k=u;
+     while(k!==a){const p=prev.get(k);if(!p)return null;ids.unshift(p.id);k=p.node}
+     return{ids,cost:du,node:u}
+    }
+    for(const x of adj.get(u)||[]){
+     const e=edges[x.id];
+     if(!e)continue;
+
+     const otherZoneRequired=
+       e.required &&
+       e.clusterId>=0 &&
+       e.clusterId!==cid &&
+       !e.mainConnector &&
+       !e.roundabout;
+
+     if(otherZoneRequired)continue;
+
+     // Strongly prefer staying inside this zone / connector network.
+     let c=e.length;
+     if(e.clusterId===cid)c*=.85;
+     else if(e.mainConnector||e.roundabout||!e.required)c*=1.10;
+     else c*=1.75;
+
+     const nd=du+c;
+     if(nd<(dist.get(x.to)??Infinity)){
+      dist.set(x.to,nd);prev.set(x.to,{node:u,id:x.id});q.push([nd,x.to])
+     }
+    }
+   }
+   return null
+  }
+
+  // Determine connected components of the required-only zone graph.
+  const reqAdj=new Map();
+  for(const id of requiredIds){
+   const e=edges[id];
+   for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){
+    if(!reqAdj.has(u))reqAdj.set(u,[]);
+    reqAdj.get(u).push({to:v,id})
+   }
+  }
+
+  const comps=[],seen=new Set();
+  for(const seed of reqAdj.keys()){
+   if(seen.has(seed))continue;
+   const stack=[seed],nodeset=new Set(),edgeSet=new Set();seen.add(seed);
+   while(stack.length){
+    const u=stack.pop();nodeset.add(u);
+    for(const x of reqAdj.get(u)||[]){
+     edgeSet.add(x.id);
+     if(!seen.has(x.to)){seen.add(x.to);stack.push(x.to)}
+    }
+   }
+   comps.push({nodes:nodeset,edges:edgeSet})
+  }
+
+  // Augment the zone with gateway/connector paths until all required components
+  // are joined into one drivable subgraph.
+  const zoneEdgeSet=new Set(requiredIds);
+  if(comps.length>1){
+   const joined=new Set(comps[0].nodes);
+   const remaining=comps.slice(1);
+
+   while(remaining.length){
+    let best=null,bestIndex=-1;
+
+    for(let i=0;i<remaining.length;i++){
+     const targetNodes=remaining[i].nodes;
+     for(const source of joined){
+      const p=zoneConnectorPath(source,targetNodes);
+      if(p&&(!best||p.cost<best.cost)){best=p;bestIndex=i}
+     }
+    }
+
+    if(!best)return null;
+
+    for(const id of best.ids)zoneEdgeSet.add(id);
+    for(const n of remaining[bestIndex].nodes)joined.add(n);
+
+    // Add nodes along connector path to joined set too.
+    let k=[...joined][0];
+    for(const id of best.ids){
+     const e=edges[id];
+     joined.add(e.ak);joined.add(e.bk)
+    }
+
+    remaining.splice(bestIndex,1)
+   }
+  }
+
+  const zoneIds=[...zoneEdgeSet];
+
+  // If entry is not already on the augmented zone subgraph, connect it to the
+  // nearest node in the zone using the same restricted gateway network.
+  const zoneNodes=new Set();
+  for(const id of zoneIds){zoneNodes.add(edges[id].ak);zoneNodes.add(edges[id].bk)}
+  let effectiveEntry=entry;
+  const prefix=[];
+  if(!zoneNodes.has(entry)){
+   const p=zoneConnectorPath(entry,zoneNodes);
+   if(!p)return null;
+   prefix.push(...p.ids);
+   effectiveEntry=p.node;
+   for(const id of p.ids)zoneEdgeSet.add(id)
+  }
+
+  const allIds=[...zoneEdgeSet];
+
+  // Build degrees over the augmented connected zone graph.
+  const degree=new Map(),cache=new Map();
+  for(const id of allIds){
+   const e=edges[id];
+   degree.set(e.ak,(degree.get(e.ak)||0)+1);
+   degree.set(e.bk,(degree.get(e.bk)||0)+1)
+  }
+
+  // Local shortest paths inside the augmented zone only.
+  function augShortest(source){
+   const dist=new Map([[source,0]]),prev=new Map(),q=[[0,source]];
+   while(q.length){
+    q.sort((a,b)=>a[0]-b[0]);
+    const [du,u]=q.shift();if(du!==dist.get(u))continue;
+    for(const x of adj.get(u)||[]){
+     if(!zoneEdgeSet.has(x.id))continue;
+     const nd=du+edges[x.id].length;
+     if(nd<(dist.get(x.to)??Infinity)){
+      dist.set(x.to,nd);prev.set(x.to,{node:u,id:x.id});q.push([nd,x.to])
+     }
+    }
+   }
+   return{dist,prev}
+  }
+
+  function augPath(a,b){
+   const key=a+'>'+b;if(cache.has(key))return cache.get(key);
+   const treeKey='TREE:'+a;
+   let r=cache.get(treeKey);if(!r){r=augShortest(a);cache.set(treeKey,r)}
+   if(!r.dist.has(b)){cache.set(key,null);return null}
+   const ids=[];let k=b;
+   while(k!==a){const p=r.prev.get(k);if(!p){cache.set(key,null);return null}ids.unshift(p.id);k=p.node}
+   const out={ids,cost:r.dist.get(b)};cache.set(key,out);return out
+  }
+
+  const boundary=[...degree.keys()].filter(k=>(adj.get(k)||[]).some(x=>!zoneEdgeSet.has(x.id)));
+  const odd=[...degree].filter(([,n])=>n%2).map(([k])=>k);
+  const candidates=[...new Set([...boundary,...odd])].filter(k=>k!==effectiveEntry);
+  if(!candidates.length)candidates.push(effectiveEntry);
+
+  function pairTerminals(list){
+   if(!list.length)return{cost:0,pairs:[]};
+   const d=(a,b)=>{const p=augPath(a,b);return p?p.cost:Infinity};
+
+   if(list.length<=10){
+    const memo=new Map();
+    function solve(mask){
+     if(!mask)return{cost:0,pairs:[]};
+     if(memo.has(mask))return memo.get(mask);
+     let i=0;while(!(mask&(1<<i)))i++;
+     let best={cost:Infinity,pairs:[]};
+     for(let j=i+1;j<list.length;j++)if(mask&(1<<j)){
+      const dij=d(list[i],list[j]);if(!Number.isFinite(dij))continue;
+      const sub=solve(mask&~(1<<i)&~(1<<j));
+      const cost=dij+sub.cost;
+      if(cost<best.cost)best={cost,pairs:[[list[i],list[j]],...sub.pairs]}
+     }
+     memo.set(mask,best);return best
+    }
+    return solve((1<<list.length)-1)
+   }
+
+   const left=[...list],pairs=[];
+   while(left.length){
+    const a=left.shift();let bi=-1,bd=Infinity;
+    for(let i=0;i<left.length;i++){const x=d(a,left[i]);if(x<bd){bd=x;bi=i}}
+    if(bi<0)return{cost:Infinity,pairs:[]};
+    pairs.push([a,left.splice(bi,1)[0]])
+   }
+   return{cost:pairs.reduce((sum,[a,b])=>sum+d(a,b),0),pairs}
+  }
+
   let best=null;
   for(const target of candidates){
-   const terminals=new Set(odd);for(const k of [entry,target])terminals.has(k)?terminals.delete(k):terminals.add(k);
-   const list=[...terminals];if(list.length%2)continue;const plan=pairZone(cid,list,cache);
+   const terminals=new Set(odd);
+   for(const k of [effectiveEntry,target])terminals.has(k)?terminals.delete(k):terminals.add(k);
+   const list=[...terminals];if(list.length%2)continue;
+   const plan=pairTerminals(list);
    if(!Number.isFinite(plan.cost))continue;
-   const closedPenalty=target===entry&&ids.length>2?2500:0;
+   const closedPenalty=target===effectiveEntry&&requiredIds.length>2?2500:0;
    if(!best||plan.cost+closedPenalty<best.score)best={target,plan,score:plan.cost+closedPenalty}
   }
   if(!best)return null;
-  const copies=ids.map(id=>({a:edges[id].ak,b:edges[id].bk,id}));
-  for(const [a,b] of best.plan.pairs){const p=localPath(cid,a,b,cache);if(!p)return null;for(const id of p.ids)copies.push({a:edges[id].ak,b:edges[id].bk,id})}
-  const multi=new Map();copies.forEach((c,copy)=>{for(const [u,v] of [[c.a,c.b],[c.b,c.a]]){if(!multi.has(u))multi.set(u,[]);multi.get(u).push({copy,to:v,id:c.id})}});
-  const used=new Set(),stack=[{node:entry,via:null}],walk=[];
-  while(stack.length){
-   const top=stack.at(-1),list=multi.get(top.node)||[];let next=null,bestScore=Infinity;
-   for(const x of list){if(used.has(x.copy))continue;const sc=maneuverPenalty(stack.length>1?stack.at(-1).via:null,top.node,x.id,x.to)+(edgeUses.get(x.id)||0)*150;if(sc<bestScore){bestScore=sc;next=x}}
-   if(next){used.add(next.copy);stack.push({node:next.to,via:next.id,copy:next.copy})}else walk.push(stack.pop())
+
+  const copies=allIds.map(id=>({a:edges[id].ak,b:edges[id].bk,id}));
+  for(const [a,b] of best.plan.pairs){
+   const p=augPath(a,b);if(!p)return null;
+   for(const id of p.ids)copies.push({a:edges[id].ak,b:edges[id].bk,id})
   }
-  walk.reverse();if(used.size!==copies.length)return null;
-  return{ids:walk.slice(1).map(x=>x.via),target:walk.at(-1).node}
+
+  const multi=new Map();
+  copies.forEach((c,copy)=>{
+   for(const [u,v] of [[c.a,c.b],[c.b,c.a]]){
+    if(!multi.has(u))multi.set(u,[]);
+    multi.get(u).push({copy,to:v,id:c.id})
+   }
+  });
+
+  const used=new Set(),stack=[{node:effectiveEntry,via:null}],walk=[];
+  while(stack.length){
+   const top=stack.at(-1),list=multi.get(top.node)||[];
+   let next=null,bestScore=Infinity;
+
+   for(const x of list){
+    if(used.has(x.copy))continue;
+    const e=edges[x.id];
+    let sc=(edgeUses.get(x.id)||0)*150;
+
+    // Prefer required coverage before pure connector edges while inside a zone.
+    if(!e.required)sc+=500;
+    if(e.mainConnector)sc+=350;
+
+    if(sc<bestScore){bestScore=sc;next=x}
+   }
+
+   if(next){
+    used.add(next.copy);
+    stack.push({node:next.to,via:next.id,copy:next.copy})
+   }else walk.push(stack.pop())
+  }
+
+  walk.reverse();
+  if(used.size!==copies.length)return null;
+
+  return{ids:[...prefix,...walk.slice(1).map(x=>x.via)],target:walk.at(-1).node}
  }
 
  function zoneTargets(cid){const set=new Set();for(const id of patrolClusters[cid]||[]){const e=edges[id];if(e){set.add(e.ak);set.add(e.bk)}}return set}
@@ -624,7 +848,7 @@ function buildRoute(){
  $('forcedTransitStat').textContent=routeQuality.forcedTransit;
  $('reverseBtn').disabled=mode!=='return';$('simulateBtn').disabled=false;$('gpsBtn').disabled=false;updateProgress(0);
 
- setStatus('Gateway-aware patrol route built: zones are completed sequentially, tiny zones are merged, and completed-zone streets are used only when no cleaner connector route exists.','good')
+ setStatus('Gateway-aware patrol route built: merged zones may use their own connector/gateway streets internally, zones are completed sequentially, and completed-zone transit remains last-resort only.','good')
 }
 function densifyRoute(points,step){if(points.length<2)return points.slice();const out=[points[0]];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.max(1,Math.ceil(distance(a,b)/step));for(let j=1;j<=n;j++)out.push(interp(a,b,j/n))}return out}
 function setRouteDistances(){routeCum=[0];for(let i=1;i<routeCoords.length;i++)routeCum.push(routeCum.at(-1)+distance(routeCoords[i-1],routeCoords[i]))}
