@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.17.3</title>
+  <title>Patrol Route v0.17.4</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,12 +22,12 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.17.3</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.17.4</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app builds geographic patrol zones from branch/articulation structure, merges tiny islands, and treats completed-zone streets as last-resort transit rather than absolute walls.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app builds geographic patrol zones, favors smooth right-hand loop sweeps, removes redundant short double-backs, and keeps completed-zone transit as a last resort.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
     <section class="card"><h2>Route status</h2><div id="status" class="status">Adjust the boundary, choose START, then load roads.</div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div><div id="progressText" class="progress-text">Route not started</div><button id="routeBtn" disabled>Build Optimized Route</button><button id="reverseBtn" class="secondary" disabled>Reverse Route</button><button id="simulateBtn" class="secondary" disabled>Simulate Drive</button><button id="gpsBtn" class="secondary" disabled>Use Live GPS</button></section>
-    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Patrol zones</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Zone re-entries</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
+    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Patrol zones</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Zone re-entries</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
     <section class="card"><h2>Route efficiency</h2><div class="stats"><span>Unique coverage</span><b id="uniqueMetric">—</b><span>Baseline double-back</span><b id="baselineMetric">—</b><span>Optimized route</span><b id="totalMetric">—</b><span>Miles saved</span><b id="savingsMetric">—</b><span>Repeated travel</span><b id="repeatMetric">—</b><span>Efficiency</span><b id="effMetric">—</b><span>Most repeated street</span><b id="repeatedStreetMetric">—</b><span>Optimized FINISH</span><b id="finishMetric">—</b></div></section>
   </aside>
   <div id="map"></div>
@@ -44,7 +44,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,att
 const drawn=new L.FeatureGroup().addTo(map), roadLayer=L.layerGroup().addTo(map), gapLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map), markerLayer=L.layerGroup().addTo(map);
 const shapeStyle={color:'#ffd34e',weight:3,fillOpacity:.06};
 const drawControl=new L.Control.Draw({position:'topright',draw:{polygon:{shapeOptions:shapeStyle},rectangle:{shapeOptions:shapeStyle},circle:{shapeOptions:shapeStyle,showRadius:true,metric:true,feet:true},polyline:false,circlemarker:false,marker:false},edit:{featureGroup:drawn,remove:false}}).addTo(map);
-let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0};
+let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0};
 const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,-82.5348],[28.4848,-82.5524]],{color:'#ffd34e',weight:3,fillOpacity:.06}).addTo(drawn); boundary=defaultBoundary;
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
@@ -78,7 +78,7 @@ $('routeBtn').onclick=async()=>{
 };
 $('reverseBtn').onclick=reverseRoute; $('simulateBtn').onclick=simulate; $('gpsBtn').onclick=liveGps; $('includeNonLocal').onchange=()=>features.length&&loadRoads();
 function setStatus(t,c=''){$('status').textContent=t;$('status').className='status '+c}
-function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
+function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat','cleanupStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
 function boundaryRing(){if(boundary instanceof L.Circle){const c=boundary.getLatLng(),r=boundary.getRadius(),pts=[];for(let i=0;i<72;i++){const a=i*2*Math.PI/72,dy=Math.sin(a)*r/R*180/Math.PI,dx=Math.cos(a)*r/(R*Math.cos(c.lat*Math.PI/180))*180/Math.PI;pts.push(L.latLng(c.lat+dy,c.lng+dx))}return pts}return boundary.getLatLngs()[0]}
 function pointInPoly(p,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.lat>p.lat)!=(b.lat>p.lat))&&(p.lng<(b.lng-a.lng)*(p.lat-a.lat)/(b.lat-a.lat)+a.lng))inside=!inside;}return inside}
 function segmentCrossesBoundary(a,b,ring){if(pointInPoly(a,ring)||pointInPoly(b,ring))return true;for(let i=0,j=ring.length-1;i<ring.length;j=i++)if(intersection({a,b},{a:ring[j],b:ring[i]}))return true;return false}
@@ -358,7 +358,7 @@ function buildRoute(){
  if(!edges.length){setStatus('Load roads before building the route.','error');return}
  setStatus('Optimizing patrol zones and connector sequence…');
 
- routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0};
+ routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0};
  $('uturnStat').textContent='—';$('mainRepeatStat').textContent='—';$('reentryStat').textContent='—';$('connectorCreditStat').textContent='—';
 
  const adj=new Map(),nodePoint=new Map();
@@ -373,17 +373,35 @@ function buildRoute(){
 
  function other(id,node){const e=edges[id];return e.ak===node?e.bk:e.ak}
  function bearing(a,b){const y=(b.lng-a.lng)*Math.cos((a.lat+b.lat)*Math.PI/360),x=b.lat-a.lat;return(Math.atan2(y,x)*180/Math.PI+360)%360}
- function turnAngle(prevId,node,nextId){if(prevId===null)return 0;const a=other(prevId,node),b=other(nextId,node);return Math.abs((((bearing(nodePoint.get(a),nodePoint.get(node))-bearing(nodePoint.get(node),nodePoint.get(b)))+540)%360)-180)}
+ function signedTurn(prevId,node,nextId){
+  if(prevId===null)return 0;
+  const from=other(prevId,node),to=other(nextId,node);
+  const incoming=bearing(nodePoint.get(from),nodePoint.get(node));
+  const outgoing=bearing(nodePoint.get(node),nodePoint.get(to));
+  return ((outgoing-incoming+540)%360)-180
+ }
+ function turnAngle(prevId,node,nextId){return Math.abs(signedTurn(prevId,node,nextId))}
 
  function maneuverPenalty(prevId,node,nextId,toNode){
   if(prevId===null)return 0;
   const pe=edges[prevId],ne=edges[nextId];if(pe.roundabout||ne.roundabout)return 0;
-  const ang=turnAngle(prevId,node,nextId),deg=(adj.get(node)||[]).length;
+  const turn=signedTurn(prevId,node,nextId),ang=Math.abs(turn),deg=(adj.get(node)||[]).length;
   let p=0;
+
+  // True/near reversal stays extremely expensive.
   if(ang>=165&&deg>1)p+=18000;
   else if(ang>=140)p+=4200;
   else if(ang>=110)p+=1100;
-  else if(ang>=80)p+=250;
+  else if(ang>=75)p+=180;
+
+  // Soft right-hand sweep preference.
+  // Compass bearings increase clockwise, so positive turn = right turn.
+  if(ang>=20&&ang<140){
+   if(turn<0)p+=130;      // ordinary left turn
+   else p+=12;            // ordinary right turn
+  }else if(ang<20){
+   p+=30;                 // straight is fine, but a clean right sweep wins ties
+  }
 
   // History-based reversal: returning to a node occupied in the previous three
   // movements is functionally a U-turn even if it is not the exact same edge.
@@ -694,11 +712,23 @@ function buildRoute(){
    for(const x of list){
     if(used.has(x.copy))continue;
     const e=edges[x.id];
-    let sc=(edgeUses.get(x.id)||0)*150;
+    let sc=(edgeUses.get(x.id)||0)*180;
 
     // Prefer required coverage before pure connector edges while inside a zone.
-    if(!e.required)sc+=500;
-    if(e.mainConnector)sc+=350;
+    if(!e.required)sc+=550;
+    if(e.mainConnector)sc+=400;
+
+    // Directional sweep: prefer continuing around the neighborhood with
+    // right-hand turns rather than cutting back across the zone.
+    const prevVia=stack.length>1?top.via:null;
+    if(prevVia!==null){
+     const t=signedTurn(prevVia,top.node,x.id),a=Math.abs(t);
+     if(a>=165)sc+=12000;
+     else if(a>=120)sc+=1800;
+     else if(a>=25&&t<0)sc+=240;   // left
+     else if(a>=25&&t>0)sc+=8;     // right
+     else sc+=40;                  // straight
+    }
 
     if(sc<bestScore){bestScore=sc;next=x}
    }
@@ -824,6 +854,95 @@ function buildRoute(){
   }
  }
 
+ // POST-ROUTE CLEANUP
+ // Remove short closed excursions that contribute no unique required coverage.
+ // This catches "go out, come back, then continue" artifacts after the main
+ // optimizer has already guaranteed full coverage.
+ function nodeSequenceFor(edgeIds,startNode){
+  const nodesOut=[startNode];let n=startNode;
+  for(const id of edgeIds){
+   const e=edges[id];if(!e)return null;
+   if(e.ak===n)n=e.bk;
+   else if(e.bk===n)n=e.ak;
+   else return null;
+   nodesOut.push(n)
+  }
+  return nodesOut
+ }
+
+ function cleanupRedundantExcursions(){
+  let ids=[...routeEdgeIds],saved=0,pass=0,changed=true;
+  while(changed&&pass++<6){
+   changed=false;
+   const ns=nodeSequenceFor(ids,start);if(!ns)break;
+   const totalCounts=new Map();for(const id of ids)totalCounts.set(id,(totalCounts.get(id)||0)+1);
+
+   outer:
+   for(let i=0;i<ns.length-2;i++){
+    // Only inspect short local excursions: at most 8 edges and 300 m.
+    let dist=0;
+    for(let j=i+2;j<Math.min(ns.length,i+9);j++){
+     dist+=edges[ids[j-1]]?.length||0;
+     if(dist>300)break;
+     if(ns[j]!==ns[i])continue;
+
+     const segment=ids.slice(i,j);
+     const segCounts=new Map();for(const id of segment)segCounts.set(id,(segCounts.get(id)||0)+1);
+
+     let uniqueRequired=false;
+     for(const [id,n] of segCounts){
+      const e=edges[id];
+      if(e?.required && (totalCounts.get(id)||0)-n<=0){
+       uniqueRequired=true;break
+      }
+     }
+     if(uniqueRequired)continue;
+
+     ids.splice(i,j-i);
+     saved+=dist;
+     changed=true;
+     break outer
+    }
+   }
+  }
+
+  const rebuilt=nodeSequenceFor(ids,start);
+  if(rebuilt){
+   routeEdgeIds=ids;
+   routeNodes.length=0;
+   routeNodes.push(...rebuilt);
+  }
+  routeQuality.cleanupSaved=saved;
+ }
+
+ cleanupRedundantExcursions();
+
+ // Recalculate maneuver/repeat diagnostics after cleanup so they describe the
+ // actual route the user will drive.
+ function recomputeDrivingQuality(){
+  let uturns=0,mainRepeats=0,prev=null,node=start;
+  const streetUses=new Map(),recent=[];
+  for(const id of routeEdgeIds){
+   const e=edges[id];if(!e)continue;
+   const to=e.ak===node?e.bk:e.ak;
+   if(prev!==null){
+    const turn=Math.abs(signedTurn(prev,node,id));
+    if(turn>=165&&(adj.get(node)||[]).length>1)uturns++;
+    if(recent.includes(to)&&(adj.get(node)||[]).length>1)uturns++;
+   }
+   if(e.mainConnector){
+    const name=normalizedRoadName(roadName(e.p)),n=streetUses.get(name)||0;
+    if(n>0)mainRepeats++;
+    streetUses.set(name,n+1)
+   }
+   recent.push(node);if(recent.length>3)recent.shift();
+   prev=id;node=to
+  }
+  routeQuality.uturns=uturns;
+  routeQuality.mainRepeats=mainRepeats
+ }
+ recomputeDrivingQuality();
+
  routeCoords=densifyRoute(routeNodes.map(k=>nodePoint.get(k)),10);setRouteDistances();
  routeLine=L.polyline(routeCoords,{color:'#083bdb',weight:7,opacity:.82,lineJoin:'round'}).addTo(routeLayer);
  completedLine=L.polyline([],{color:'#94a3b8',weight:3,opacity:.07,lineJoin:'round'}).addTo(routeLayer);
@@ -846,9 +965,10 @@ function buildRoute(){
  $('reentryStat').textContent=routeQuality.reentries;
  $('connectorCreditStat').textContent=routeQuality.connectorCredits;
  $('forcedTransitStat').textContent=routeQuality.forcedTransit;
+ $('cleanupStat').textContent=(routeQuality.cleanupSaved/1609.344).toFixed(2)+' mi';
  $('reverseBtn').disabled=mode!=='return';$('simulateBtn').disabled=false;$('gpsBtn').disabled=false;updateProgress(0);
 
- setStatus('Gateway-aware patrol route built: merged zones may use their own connector/gateway streets internally, zones are completed sequentially, and completed-zone transit remains last-resort only.','good')
+ setStatus('Directional-sweep patrol route built: right-hand loop continuation is preferred, short redundant excursions are removed, and zone/connector safeguards remain active.','good')
 }
 function densifyRoute(points,step){if(points.length<2)return points.slice();const out=[points[0]];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.max(1,Math.ceil(distance(a,b)/step));for(let j=1;j<=n;j++)out.push(interp(a,b,j/n))}return out}
 function setRouteDistances(){routeCum=[0];for(let i=1;i<routeCoords.length;i++)routeCum.push(routeCum.at(-1)+distance(routeCoords[i-1],routeCoords[i]))}
