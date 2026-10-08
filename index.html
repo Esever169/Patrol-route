@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.16</title>
+  <title>Patrol Route v0.16.1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.16</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.16.1</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app now treats patrol pockets as hard sequencing units: finish the current pocket before leaving, then move to the next pocket using the connector network.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
@@ -49,7 +49,24 @@ const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
 map.on('click',e=>{if(choosingStart){choosingStart=false;startLatLng=e.latlng;if(startMarker)markerLayer.removeLayer(startMarker);startMarker=L.marker(e.latlng).bindTooltip('START',{permanent:true,direction:'top'}).addTo(markerLayer);$('startBtn').textContent='Change START';setStatus('START selected. Load connected streets when ready.','good');return}if(choosingFinish){choosingFinish=false;finishLatLng=e.latlng;if(finishMarker)markerLayer.removeLayer(finishMarker);finishMarker=L.marker(e.latlng).bindTooltip('FINISH',{permanent:true,direction:'top'}).addTo(markerLayer);$('finishBtn').textContent='Change FINISH';setStatus('FINISH selected. Load streets or build the route.','good')}});
-$('startBtn').onclick=()=>{choosingStart=true;choosingFinish=false;setStatus('Tap the map to place START.');}; $('finishBtn').onclick=()=>{choosingFinish=true;choosingStart=false;setStatus('Tap the map to place FINISH.');};document.querySelectorAll('input[name=finishMode]').forEach(r=>r.onchange=()=>{$('finishBtn').disabled=r.value!=='choose';if(r.value!=='choose'&&finishMarker){markerLayer.removeLayer(finishMarker);finishMarker=null}setStatus(r.value==='return'?'Route will return to START.':r.value==='choose'?'Choose FINISH on the map.':'The app will choose the finish that reduces repeated travel.');}); $('loadBtn').onclick=loadRoads; $('routeBtn').onclick=buildRoute; $('reverseBtn').onclick=reverseRoute; $('simulateBtn').onclick=simulate; $('gpsBtn').onclick=liveGps; $('includeNonLocal').onchange=()=>features.length&&loadRoads();
+$('startBtn').onclick=()=>{choosingStart=true;choosingFinish=false;setStatus('Tap the map to place START.');}; $('finishBtn').onclick=()=>{choosingFinish=true;choosingStart=false;setStatus('Tap the map to place FINISH.');};document.querySelectorAll('input[name=finishMode]').forEach(r=>r.onchange=()=>{$('finishBtn').disabled=r.value!=='choose';if(r.value!=='choose'&&finishMarker){markerLayer.removeLayer(finishMarker);finishMarker=null}setStatus(r.value==='return'?'Route will return to START.':r.value==='choose'?'Choose FINISH on the map.':'The app will choose the finish that reduces repeated travel.');}); $('loadBtn').onclick=loadRoads;
+$('routeBtn').onclick=async()=>{
+  const btn=$('routeBtn');
+  btn.disabled=true;
+  setStatus('Building optimized patrol route…');
+  // Let the browser paint the status before the CPU-heavy route work starts.
+  await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,20)));
+  try{
+    buildRoute();
+  }catch(err){
+    console.error(err);
+    setStatus('Route build failed: '+(err?.message||String(err)),'error');
+  }finally{
+    // Re-enable whenever a graph is still loaded.
+    btn.disabled=!edges.length;
+  }
+};
+$('reverseBtn').onclick=reverseRoute; $('simulateBtn').onclick=simulate; $('gpsBtn').onclick=liveGps; $('includeNonLocal').onchange=()=>features.length&&loadRoads();
 function setStatus(t,c=''){$('status').textContent=t;$('status').className='status '+c}
 function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat','reentryStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
 function boundaryRing(){if(boundary instanceof L.Circle){const c=boundary.getLatLng(),r=boundary.getRadius(),pts=[];for(let i=0;i<72;i++){const a=i*2*Math.PI/72,dy=Math.sin(a)*r/R*180/Math.PI,dx=Math.cos(a)*r/(R*Math.cos(c.lat*Math.PI/180))*180/Math.PI;pts.push(L.latLng(c.lat+dy,c.lng+dx))}return pts}return boundary.getLatLngs()[0]}
@@ -140,7 +157,8 @@ function findExcluded(g){let best=null;for(const f of excluded){const cs=f.geome
 function gapPopup(g,hit,feet){return '<b>'+Math.round(feet)+' ft diagnostic gap</b><br>Component '+(g.i+1)+': '+escapeHtml(g.a.name)+'<br>Component '+(g.j+1)+': '+escapeHtml(g.b.name)+'<br><br>'+(hit?'<b>Excluded county segment nearby</b><br>'+escapeHtml(roadName(hit.f.properties))+' — '+escapeHtml(exclusionReason(hit.f.properties)):'No filtered county segment found within 40 ft.')+'<br><em>Diagnostic only — not connected.</em>'}
 function updateStats(){const covered=edges.filter(e=>!e.synthetic&&e.required),names=new Set(covered.map(e=>roadName(e.p)).filter(n=>n!=='Unnamed road')),miles=covered.reduce((s,e)=>s+e.length,0)/1609.344;$('osmStat').textContent=osmSupplementCount;$('segmentStat').textContent=edges.length;$('streetStat').textContent=names.size;$('streetStat').title=[...names].sort().join(', ');$('mileStat').textContent=miles.toFixed(2);$('componentStat').textContent=1;$('ignoredStat').textContent=ignoredFragments;$('intersectionStat').textContent=insertedIntersections;$('roundaboutStat').textContent=detectedLoops;$('clusterStat').textContent=patrolClusters.length;$('repairStat').textContent=topologyRepairs;$('boundaryStat').textContent=boundaryExclusions;$('corridorStat').textContent=pairedCarriageways;$('excludedStat').textContent=excluded.length;$('excludedStat').title=excluded.map(f=>roadName(f.properties)+' — '+exclusionReason(f.properties)).sort().join(', ');$('uniqueMetric').textContent=miles.toFixed(2)+' mi'}
 function buildRoute(){
- if(!edges.length)return;
+ if(!edges.length){setStatus('Load roads before building the route.','error');return}
+ setStatus('Optimizing patrol pockets and connector sequence…');
  routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0,reentries:0};
  $('uturnStat').textContent='—';$('mainRepeatStat').textContent='—';$('reentryStat').textContent='—';
 
@@ -198,14 +216,70 @@ function buildRoute(){
    for(const x of adj.get(u)||[]){const e=edges[x.id];if(e.clusterId!==cid)continue;const nd=du+e.length;if(nd<(dist.get(x.to)??Infinity)){dist.set(x.to,nd);prev.set(x.to,{node:u,id:x.id});q.push([nd,x.to])}}
   }return{dist,prev}
  }
- function localPath(cid,a,b,cache){const key=a+'>'+b;if(cache.has(key))return cache.get(key);const r=localShortest(cid,a),ids=[];let k=b;if(!r.dist.has(b)){cache.set(key,null);return null}while(k!==a){const p=r.prev.get(k);if(!p){cache.set(key,null);return null}ids.unshift(p.id);k=p.node}const out={ids,cost:r.dist.get(b)};cache.set(key,out);return out}
+ function localPath(cid,a,b,cache){
+  const key=a+'>'+b;if(cache.has(key))return cache.get(key);
+  const treeKey='TREE:'+a;
+  let r=cache.get(treeKey);
+  if(!r){r=localShortest(cid,a);cache.set(treeKey,r)}
+  const ids=[];let k=b;
+  if(!r.dist.has(b)){cache.set(key,null);return null}
+  while(k!==a){const p=r.prev.get(k);if(!p){cache.set(key,null);return null}ids.unshift(p.id);k=p.node}
+  const out={ids,cost:r.dist.get(b)};cache.set(key,out);return out
+ }
 
  // Exact/greedy terminal matching for one pocket only.
  function pairPocket(cid,list,cache){
   if(!list.length)return{cost:0,pairs:[]};
   const d=(a,b)=>{const p=localPath(cid,a,b,cache);return p?p.cost:Infinity};
-  if(list.length<=16){const memo=new Map();function solve(mask){if(!mask)return{cost:0,pairs:[]};if(memo.has(mask))return memo.get(mask);let i=0;while(!(mask&(1<<i)))i++;let best={cost:Infinity,pairs:[]};for(let j=i+1;j<list.length;j++)if(mask&(1<<j)){const sub=solve(mask&~(1<<i)&~(1<<j)),cost=d(list[i],list[j])+sub.cost;if(cost<best.cost)best={cost,pairs:[[list[i],list[j]],...sub.pairs]}}memo.set(mask,best);return best}return solve((1<<list.length)-1)}
-  const left=[...list],pairs=[];while(left.length){const a=left.shift();let bi=0,bd=Infinity;for(let i=0;i<left.length;i++){const x=d(a,left[i]);if(x<bd){bd=x;bi=i}}pairs.push([a,left.splice(bi,1)[0]])}return{cost:pairs.reduce((sum,[a,b])=>sum+d(a,b),0),pairs}
+
+  // Exact matching is excellent for small pockets, but 16 terminals can require
+  // up to 65,536 subset states and can freeze a mobile browser. Keep exact
+  // matching for <=10 terminals and use a fast nearest-pair + pair-swap optimizer
+  // for larger pockets.
+  if(list.length<=10){
+   const memo=new Map();
+   function solve(mask){
+    if(!mask)return{cost:0,pairs:[]};
+    if(memo.has(mask))return memo.get(mask);
+    let i=0;while(!(mask&(1<<i)))i++;
+    let best={cost:Infinity,pairs:[]};
+    for(let j=i+1;j<list.length;j++)if(mask&(1<<j)){
+     const dij=d(list[i],list[j]);if(!Number.isFinite(dij))continue;
+     const sub=solve(mask&~(1<<i)&~(1<<j)),cost=dij+sub.cost;
+     if(cost<best.cost)best={cost,pairs:[[list[i],list[j]],...sub.pairs]};
+    }
+    memo.set(mask,best);return best
+   }
+   return solve((1<<list.length)-1)
+  }
+
+  // Fast greedy seed.
+  const left=[...list],pairs=[];
+  while(left.length){
+   const a=left.shift();let bi=-1,bd=Infinity;
+   for(let i=0;i<left.length;i++){const x=d(a,left[i]);if(x<bd){bd=x;bi=i}}
+   if(bi<0||!Number.isFinite(bd))return{cost:Infinity,pairs:[]};
+   pairs.push([a,left.splice(bi,1)[0]])
+  }
+
+  // Cheap pair-swap improvement. This captures most of the benefit of exact
+  // matching without exponential runtime.
+  let changed=true,pass=0;
+  while(changed&&pass++<5){
+   changed=false;
+   for(let i=0;i<pairs.length;i++)for(let j=i+1;j<pairs.length;j++){
+    const [a,b]=pairs[i],[c,e]=pairs[j];
+    const current=d(a,b)+d(c,e);
+    const alt1=d(a,c)+d(b,e);
+    const alt2=d(a,e)+d(b,c);
+    if(alt1+0.01<current&&alt1<=alt2){
+     pairs[i]=[a,c];pairs[j]=[b,e];changed=true
+    }else if(alt2+0.01<current){
+     pairs[i]=[a,e];pairs[j]=[b,c];changed=true
+    }
+   }
+  }
+  return{cost:pairs.reduce((sum,[a,b])=>sum+d(a,b),0),pairs}
  }
 
  // Build a complete open Chinese-Postman trail for exactly one pocket.
@@ -224,7 +298,7 @@ function buildRoute(){
    const closedPenalty=target===entry&&ids.length>2?1800:0;
    if(!best||plan.cost+closedPenalty<best.score)best={target,plan,score:plan.cost+closedPenalty}
   }
-  if(!best)return null;
+  if(!best||!Number.isFinite(best.plan?.cost??best.score))return null;
   const copies=ids.map(id=>({a:edges[id].ak,b:edges[id].bk,id}));
   for(const [a,b] of best.plan.pairs){const p=localPath(cid,a,b,cache);if(!p)return null;for(const id of p.ids)copies.push({a:edges[id].ak,b:edges[id].bk,id})}
   const multi=new Map();copies.forEach((c,copy)=>{for(const [u,v] of [[c.a,c.b],[c.b,c.a]]){if(!multi.has(u))multi.set(u,[]);multi.get(u).push({copy,to:v,id:c.id})}});
@@ -259,13 +333,28 @@ function buildRoute(){
 
  // PHASE 2 — cover any required connector/main-strip segments not naturally
  // covered while moving between pockets. Work them as one continuous cleanup sweep.
- const remainingMain=()=>edges.map((e,id)=>e.required&&e.clusterId<0&&!coveredRequired.has(id)?id:null).filter(id=>id!==null);
- guard=0;while(remainingMain().length&&guard++<5000){
-  const inc=(adj.get(current)||[]).filter(x=>remainingMain().includes(x.id));
-  if(inc.length){let best=inc[0],bc=Infinity;for(const x of inc){const c=x.length+turnCost(inEdge,current,x.id)+(edgeUses.get(x.id)||0)*700;if(c<bc){bc=c;best=x}}appendEdge(best.id);continue}
-  const targets=new Set();for(const id of remainingMain()){targets.add(edges[id].ak);targets.add(edges[id].bk)}
+ const remainingMain=new Set(edges.map((e,id)=>e.required&&e.clusterId<0&&!coveredRequired.has(id)?id:null).filter(id=>id!==null));
+ guard=0;while(remainingMain.size&&guard++<2500){
+  // Remove anything that may already have been covered during a transition.
+  for(const id of [...remainingMain])if(coveredRequired.has(id))remainingMain.delete(id);
+  if(!remainingMain.size)break;
+
+  const inc=(adj.get(current)||[]).filter(x=>remainingMain.has(x.id));
+  if(inc.length){
+   let best=inc[0],bc=Infinity;
+   for(const x of inc){
+    const c=x.length+turnCost(inEdge,current,x.id)+(edgeUses.get(x.id)||0)*700;
+    if(c<bc){bc=c;best=x}
+   }
+   appendEdge(best.id);remainingMain.delete(best.id);continue
+  }
+
+  const targets=new Set();
+  for(const id of remainingMain){targets.add(edges[id].ak);targets.add(edges[id].bk)}
   let p=transitionPath(current,inEdge,targets,false);if(!p)p=transitionPath(current,inEdge,targets,true);
-  if(!p){setStatus('Could not reach the remaining connector-street coverage.','error');return}appendPath(p.ids)
+  if(!p){setStatus('Could not reach the remaining connector-street coverage.','error');return}
+  if(!p.ids.length){setStatus('Connector cleanup stalled at the current intersection.','error');return}
+  appendPath(p.ids)
  }
 
  // Verify every required edge is covered.
