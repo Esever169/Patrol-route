@@ -1,23 +1,39 @@
-PATROL ROUTE v0.17.4 — DIRECTIONAL SWEEP + CLEANUP
+PATROL ROUTE v0.18 — BLOCK / LOOP TRAVERSAL ENGINE
 
-Changes from v0.17.3:
-- Adds signed turn awareness.
-- Within a patrol zone, ordinary right turns are preferred over left turns when
-  both choices continue valid coverage.
-- Straight travel remains acceptable; reversals remain heavily penalized.
-- The same right/left preference is used by transition pathfinding.
-- Adds a post-route cleanup pass for short closed excursions (<=8 edges / 300 m)
-  that add no unique required coverage.
-- Cleanup never removes the only traversal of a required coverage segment.
-- Route U-turn and main-strip-repeat diagnostics are recalculated after cleanup.
-- Adds Cleanup savings diagnostic.
-- Existing gateway-aware zones, dynamic zone sequencing, tiny-zone merging,
-  connector coverage credit, last-resort completed-zone transit, roundabout logic,
-  county GIS, divided-road reduction, GPS and simulation remain.
+This version replaces the v0.17 geographic-zone sequencing model.
 
-Important:
-All road geometry is clipped to the selected patrol polygon during graph creation,
-so this build does not intentionally route outside the drawn patrol boundary.
+Core routing model:
+- Runs Tarjan bridge detection on the full drivable street graph.
+- Removing bridges produces maximal loop/block groups.
+- Bridge edges represent spurs, dead ends, and true connections between blocks.
+- The route traverses the resulting block tree from START.
+- Each loop/block is cleared as one unit before the route leaves it.
+- Attached bridge/spur subtrees are serviced when their gateway is encountered.
+- Return-to-START routes return from every bridge branch as topology requires.
+- Auto-finish selects one active leaf branch to remain open, avoiding an unnecessary
+  return along that final branch.
+- Chosen FINISH uses the block containing the requested finish point.
+
+Loop behavior:
+- Each block is solved as an open/closed postman trail as appropriate.
+- Right-hand turns are a soft tie-breaker only inside loop traversal.
+- Required coverage always outranks the right-turn preference.
+
+Metrics:
+- Bridge-repeat floor: lower-bound repeat mileage forced specifically by required
+  graph bridges/spurs. This is intentionally labeled a floor, not a claim of the
+  complete mathematical CPP optimum.
+- Above bridge floor: repeated mileage beyond that unavoidable bridge lower bound.
+- Cleanup savings: redundant closed excursions removed after the route is built.
+
+Preserved:
+- Hernando County GIS road source
+- OSM supplement
+- divided-road mileage reduction
+- roundabout normalization
+- START / auto finish / chosen finish / return to START
+- GPS and simulation
+- short redundant-excursion cleanup
 
 Deployment:
 Replace repository-root files and commit to main. Hard-refresh once after deployment.
