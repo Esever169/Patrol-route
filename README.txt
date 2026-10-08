@@ -1,4 +1,4 @@
-Patrol Route — Prototype v0.14
+Patrol Route — Prototype v0.14.1
 
 DEPLOYMENT
 Upload these four files to the root of the GitHub Pages repository:
@@ -16,6 +16,7 @@ OPERATOR WORKFLOW
 - Build Optimized Route uses an open/closed Chinese Postman calculation: only shortest paths required to pair odd intersections are repeated, followed by a continuous Euler traversal.
 - Roads are clipped at the patrol boundary. Short roads that only cross into the area are excluded instead of creating out-of-zone stubs.
 - Close parallel carriageways with the same road name count as one visible patrol corridor; the opposing side remains available for travel but is not mandatory coverage.
+- Required coverage islands created by carriageway pairing are reconnected through the full drivable network before optimization.
 - Auto-finish compares endpoint candidates to reduce added mileage. Chosen FINISH and Return to START enforce their requested endpoints.
 - During simulation or live GPS, progress advances by distance. The blue route disappears behind the larger orange patrol marker and the sidebar reports percent complete and miles remaining.
 - Local SPECIAL-status, collector, and minor evacuation streets are retained; only clearly non-built or major/non-local classes are filtered by default.
