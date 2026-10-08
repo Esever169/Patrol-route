@@ -1,4 +1,4 @@
-const CACHE='patrol-route-v0.18.5-shell';
+const CACHE='patrol-route-v0.18.6-shell';
 const SHELL=['./','./index.html','./manifest.webmanifest'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)));

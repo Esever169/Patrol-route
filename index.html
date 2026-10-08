@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.5</title>
+  <title>Patrol Route v0.18.6</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.5</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.6</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes streets into loop/block groups and bridge/spur roads. Unneeded roundabout/junction corridors are now removed from the routing graph before block decomposition when required coverage remains connected without them.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
@@ -174,67 +174,65 @@ function rebuildSemanticGraph(){
 
 
 function excludeUnneededJunctionCorridors(){
- // Remove roundabout + feeder/approach corridor edges ONLY when doing so does not
- // disconnect any required coverage from START. This mirrors manual deletion,
- // but keeps a corridor if it is actually needed as a transit bridge.
-
- const candidateIds=new Set();
- edges.forEach((e,id)=>{
-  if(e.roundabout||e.roundaboutApproach||e.junctionFeeder)candidateIds.add(id)
- });
- if(!candidateIds.size){suppressedFeeders=0;return 0}
-
- const requiredIds=edges.map((e,id)=>e.required?id:null).filter(id=>id!==null);
- if(!requiredIds.length){suppressedFeeders=0;return 0}
-
- // Determine START's nearest node using the current graph.
- const nodes=new Map();
- edges.forEach((e,id)=>{
-  for(const [k,p] of [[e.ak,e.a],[e.bk,e.b]]){
-   if(!nodes.has(k))nodes.set(k,p)
-  }
- });
- let startNode=null,best=Infinity;
- for(const [k,p] of nodes){
-  const d=distance(startLatLng,p);
-  if(d<best){best=d;startNode=k}
- }
- if(!startNode){suppressedFeeders=0;return 0}
+ // Evaluate whole named main corridors before block/bridge topology is built.
+ // A side-street branch does not protect a main strip by itself: the deciding
+ // question is whether every required residential edge remains reachable.
+ const protectedIds=edges.map((e,id)=>e.required&&!e.mainConnector&&!e.roundabout&&!e.roundaboutApproach&&!e.junctionFeeder?id:null).filter(id=>id!==null);
+ if(!protectedIds.length){suppressedFeeders=0;return 0}
 
  function requiredReachableWithout(removeSet){
-  const g=new Map();
+  const g=new Map(),points=new Map();
   edges.forEach((e,id)=>{
    if(removeSet.has(id))return;
+   points.set(e.ak,e.a);points.set(e.bk,e.b);
    for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){
     if(!g.has(u))g.set(u,[]);
     g.get(u).push(v)
    }
   });
-
+  let startNode=null,best=Infinity;
+  for(const [k,p] of points){const d=distance(startLatLng,p);if(d<best){best=d;startNode=k}}
+  if(!startNode)return false;
   const seen=new Set([startNode]),stack=[startNode];
-  while(stack.length){
-   const u=stack.pop();
-   for(const v of g.get(u)||[])if(!seen.has(v)){seen.add(v);stack.push(v)}
-  }
-
-  for(const id of requiredIds){
+  while(stack.length){const u=stack.pop();for(const v of g.get(u)||[])if(!seen.has(v)){seen.add(v);stack.push(v)}}
+  for(const id of protectedIds){
    if(removeSet.has(id))continue;
    const e=edges[id];
-   if(!seen.has(e.ak)&&!seen.has(e.bk))return false
+   if(!seen.has(e.ak)||!seen.has(e.bk))return false
   }
   return true
  }
 
- // Test the entire candidate corridor first.
- if(!requiredReachableWithout(candidateIds)){
-  // Corridor is needed somewhere. Remove only safe leaf pieces greedily.
-  const safe=new Set();
-  for(const id of candidateIds){
-   const trial=new Set([...safe,id]);
-   if(requiredReachableWithout(trial))safe.add(id)
-  }
-  candidateIds.clear();
-  for(const id of safe)candidateIds.add(id)
+ const junctionIds=new Set(),mainByName=new Map();
+ edges.forEach((e,id)=>{
+  if(e.roundabout||e.roundaboutApproach||e.junctionFeeder)junctionIds.add(id);
+  if(e.mainConnector){const n=normalizedRoadName(roadName(e.p));if(!mainByName.has(n))mainByName.set(n,new Set());mainByName.get(n).add(id)}
+ });
+
+ // Only test named main corridors that touch a detected junction corridor.
+ // Add the touching roundabout/approach pieces so the test mirrors deleting
+ // the visible main-strip + roundabout corridor as one operation.
+ const groups=[];
+ for(const [name,ids] of mainByName){
+  const nodes=new Set();for(const id of ids){nodes.add(edges[id].ak);nodes.add(edges[id].bk)}
+  const group=new Set(ids),queue=[...junctionIds].filter(id=>nodes.has(edges[id].ak)||nodes.has(edges[id].bk));
+  for(const id of queue){if(group.has(id))continue;group.add(id);nodes.add(edges[id].ak);nodes.add(edges[id].bk);for(const other of junctionIds)if(!group.has(other)&&(nodes.has(edges[other].ak)||nodes.has(edges[other].bk)))queue.push(other)}
+  if(group.size>ids.size)groups.push({name,ids:group})
+ }
+ groups.sort((a,b)=>[...b.ids].reduce((s,id)=>s+edges[id].length,0)-[...a.ids].reduce((s,id)=>s+edges[id].length,0));
+
+ const candidateIds=new Set();
+ for(const group of groups){
+  const trial=new Set([...candidateIds,...group.ids]);
+  if(requiredReachableWithout(trial))for(const id of group.ids)candidateIds.add(id)
+ }
+
+ // Remove any remaining junction-only pieces when safe. If a whole main
+ // corridor is necessary, this leaves only the pieces genuinely needed as transit.
+ for(const id of junctionIds){
+  if(candidateIds.has(id))continue;
+  const trial=new Set([...candidateIds,id]);
+  if(requiredReachableWithout(trial))candidateIds.add(id)
  }
 
  if(!candidateIds.size){suppressedFeeders=0;return 0}

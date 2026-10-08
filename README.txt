@@ -1,4 +1,4 @@
-PATROL ROUTE v0.18.5 — PRE-ROUTING JUNCTION CORRIDOR EXCLUSION
+PATROL ROUTE v0.18.6 — WHOLE MAIN-CORRIDOR EXCLUSION
 
 Why this change:
 v0.18.4 only changed roundabout feeder corridors to non-required coverage.
@@ -6,13 +6,16 @@ Those roads still remained in the routing graph and could distort block/bridge
 topology or prevent the block solver from finding a continuous route.
 Manual deletion worked because it removed the roads before topology was built.
 
-v0.18.5 now mirrors that behavior automatically:
-- Detects roundabout, roundabout-approach, and junction-feeder corridor candidates.
-- Before route optimization, tests whether required coverage remains connected
-  from START if those candidate edges are removed.
-- If safe, removes the entire unnecessary corridor from the routing graph.
-- If the full removal would disconnect required coverage, greedily removes only
-  the safe candidate pieces and retains whatever is genuinely needed for transit.
+v0.18.6 applies the stronger whole-corridor rule:
+- Detects named main corridors that touch a roundabout, roundabout approach,
+  or junction-feeder corridor.
+- Temporarily removes the whole named main-strip + junction corridor before
+  block and bridge topology is built.
+- Tests whether every required residential edge remains reachable from START.
+- Residential side-street connections no longer automatically protect the
+  main corridor when the same streets remain reachable through the neighborhood.
+- If whole-corridor removal is unsafe, removes only individually safe junction
+  pieces and keeps the portions genuinely required for transit.
 - Rebuilds graph keys and semantic classification after exclusion.
 - The block/loop engine then sees the same reduced topology that manual deletion
   would have produced.
