@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.16.2</title>
+  <title>Patrol Route v0.16.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.16.2</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.16.3</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app now treats patrol pockets as hard sequencing units: finish the current pocket before leaving, then move to the next pocket using the connector network.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
@@ -49,7 +49,17 @@ const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
 map.on('click',e=>{if(choosingStart){choosingStart=false;startLatLng=e.latlng;if(startMarker)markerLayer.removeLayer(startMarker);startMarker=L.marker(e.latlng).bindTooltip('START',{permanent:true,direction:'top'}).addTo(markerLayer);$('startBtn').textContent='Change START';setStatus('START selected. Load connected streets when ready.','good');return}if(choosingFinish){choosingFinish=false;finishLatLng=e.latlng;if(finishMarker)markerLayer.removeLayer(finishMarker);finishMarker=L.marker(e.latlng).bindTooltip('FINISH',{permanent:true,direction:'top'}).addTo(markerLayer);$('finishBtn').textContent='Change FINISH';setStatus('FINISH selected. Load streets or build the route.','good')}});
-$('startBtn').onclick=()=>{choosingStart=true;choosingFinish=false;setStatus('Tap the map to place START.');}; $('finishBtn').onclick=()=>{choosingFinish=true;choosingStart=false;setStatus('Tap the map to place FINISH.');};document.querySelectorAll('input[name=finishMode]').forEach(r=>r.onchange=()=>{$('finishBtn').disabled=r.value!=='choose';if(r.value!=='choose'&&finishMarker){markerLayer.removeLayer(finishMarker);finishMarker=null}setStatus(r.value==='return'?'Route will return to START.':r.value==='choose'?'Choose FINISH on the map.':'The app will choose the finish that reduces repeated travel.');}); $('loadBtn').onclick=loadRoads;
+$('startBtn').onclick=()=>{choosingStart=true;choosingFinish=false;setStatus('Tap the map to place START.');}; $('finishBtn').onclick=()=>{choosingFinish=true;choosingStart=false;setStatus('Tap the map to place FINISH.');};document.querySelectorAll('input[name=finishMode]').forEach(r=>r.onchange=()=>{$('finishBtn').disabled=r.value!=='choose';if(r.value!=='choose'&&finishMarker){markerLayer.removeLayer(finishMarker);finishMarker=null}setStatus(r.value==='return'?'Route will return to START.':r.value==='choose'?'Choose FINISH on the map.':'The app will choose the finish that reduces repeated travel.');}); const CRITICAL_FUNCTIONS=[
+ 'loadRoads','buildGraph','keepStartComponent','rebuildSemanticGraph',
+ 'classifyPatrolSemantics','buildRoute','densifyRoute'
+];
+for(const fn of CRITICAL_FUNCTIONS){
+ if(eval('typeof '+fn)!=='function'){
+  throw new Error('Application initialization failed: missing function '+fn);
+ }
+}
+
+$('loadBtn').onclick=loadRoads;
 $('routeBtn').onclick=async()=>{
   const btn=$('routeBtn');
   btn.disabled=true;
@@ -79,26 +89,61 @@ function roadName(p){return (p.LABELNAME||[p.PREDIR,p.STREETNAME,p.STREETTYPE,p.
 function normalizedRoadName(name){const words=String(name).toUpperCase().replace(/[^A-Z0-9 ]/g,' ').trim().split(/\s+/),suffix={ROAD:'RD',DRIVE:'DR',STREET:'ST',AVENUE:'AVE',BOULEVARD:'BLVD',COURT:'CT',CIRCLE:'CIR',PLACE:'PL',LANE:'LN',PARKWAY:'PKWY',TERRACE:'TER',TRAIL:'TRL'};return words.map(w=>suffix[w]||w).join(' ')}
 function exclusionReason(p){const status=(p.STATUS||'').trim().toUpperCase(),type=(p.TYPE||'').trim().toUpperCase(),rt=(p.ROAD_TYPE||'').trim().toUpperCase();if(['RESERVED','PLATTED'].includes(status))return 'status '+status;if(type==='MAJOR')return 'MAJOR road';if(['MNCL','PKWY','TRKR','PART'].includes(rt))return 'road class '+rt;return ''}
 async function loadOsmSupplement(box,ring,county){try{const bbox=[box.getWest(),box.getSouth(),box.getEast(),box.getNorth()].join(','),res=await fetch('https://api.openstreetmap.org/api/0.6/map?bbox='+bbox);if(!res.ok)return[];const xml=new DOMParser().parseFromString(await res.text(),'text/xml'),nodes=new Map([...xml.querySelectorAll('node')].map(n=>[n.id,L.latLng(+n.getAttribute('lat'),+n.getAttribute('lon'))])),countyNames=new Set(county.map(f=>normalizedRoadName(roadName(f.properties)))),countySegments=[];for(const f of county)for(let i=1;i<f.geometry.coordinates.length;i++)countySegments.push([L.latLng(f.geometry.coordinates[i-1][1],f.geometry.coordinates[i-1][0]),L.latLng(f.geometry.coordinates[i][1],f.geometry.coordinates[i][0])]);const allowed=new Set(['residential','living_street','service','unclassified','tertiary']),unnamedAllowed=new Set(['residential','living_street','unclassified']),out=[];for(const w of xml.querySelectorAll('way')){const tags=Object.fromEntries([...w.querySelectorAll('tag')].map(t=>[t.getAttribute('k'),t.getAttribute('v')])),name=(tags.name||'').trim(),highway=tags.highway;if(!allowed.has(highway)||name&&countyNames.has(normalizedRoadName(name))||!name&&!unnamedAllowed.has(highway))continue;const points=[...w.querySelectorAll('nd')].map(n=>nodes.get(n.getAttribute('ref'))).filter(Boolean),coords=points.map(p=>[p.lng,p.lat]);if(coords.length<2)continue;if(!name){const samples=[points[0],points[Math.floor(points.length/2)],points.at(-1)],nearCounty=samples.every(p=>countySegments.some(([a,b])=>projectToSegment(p,a,b).d<=8));if(nearCounty)continue}const label=name||'New local street',f={type:'Feature',properties:{LABELNAME:label,STREETNAME:label,TYPE:'MINOR',STATUS:'EXISTS',SOURCE:'OSM',JUNCTION:tags.junction||'',IS_LOOP:tags.junction==='roundabout'||coords[0][0]===coords.at(-1)[0]&&coords[0][1]===coords.at(-1)[1]?'Y':'N'},geometry:{type:'LineString',coordinates:coords}};if(featureTouchesBoundary(f,ring))out.push(f)}return out}catch(err){console.warn('OSM supplement unavailable',err);return[]}}
-async function loadRoads(){try{if(!boundary)throw Error('Draw a patrol boundary first.');if(!startLatLng)throw Error('Choose START on the map first.');if(finishMode()==='choose'&&!finishLatLng)throw Error('Choose FINISH on the map, or select another finish mode.');setStatus('Loading connected streets…');clearResults();const ring=boundaryRing(),box=boundary.getBounds(),env=[box.getWest(),box.getSouth(),box.getEast(),box.getNorth()].join(',');const q=new URLSearchParams({where:'1=1',geometry:env,geometryType:'esriGeometryEnvelope',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'OBJECTID,SEGMENTID,STREETNAME,LABELNAME,PREDIR,STREETTYPE,SUFFIX,STATUS,TYPE,ROAD_TYPE,EVACROUTE',returnGeometry:'true',outSR:'4326',f:'geojson'});const res=await fetch(SERVICE+'?'+q);if(!res.ok)throw Error('County GIS returned '+res.status);const data=await res.json();if(data.error)throw Error(data.error.message);const county=(data.features||[]).filter(f=>f.geometry&&f.geometry.type==='LineString'&&featureTouchesBoundary(f,ring)),osm=await loadOsmSupplement(box,ring,county);osmSupplementCount=osm.length;const inside=[...county,...osm];excluded=county.filter(f=>exclusionReason(f.properties));features=$('includeNonLocal').checked?inside:inside.filter(f=>!exclusionReason(f.properties));if(!features.length)throw Error('No eligible streets were found inside this boundary.');buildGraph(features,ring);keepStartComponent();rebuildSemanticGraph();renderGraph();updateStats();setStatus('Connected streets loaded. Coverage routing is ready.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
+async function loadRoads(){try{if(!boundary)throw Error('Draw a patrol boundary first.');if(!startLatLng)throw Error('Choose START on the map first.');if(finishMode()==='choose'&&!finishLatLng)throw Error('Choose FINISH on the map, or select another finish mode.');setStatus('Loading connected streets…');clearResults();const ring=boundaryRing(),box=boundary.getBounds(),env=[box.getWest(),box.getSouth(),box.getEast(),box.getNorth()].join(',');const q=new URLSearchParams({where:'1=1',geometry:env,geometryType:'esriGeometryEnvelope',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'OBJECTID,SEGMENTID,STREETNAME,LABELNAME,PREDIR,STREETTYPE,SUFFIX,STATUS,TYPE,ROAD_TYPE,EVACROUTE',returnGeometry:'true',outSR:'4326',f:'geojson'});const res=await fetch(SERVICE+'?'+q);if(!res.ok)throw Error('County GIS returned '+res.status);const data=await res.json();if(data.error)throw Error(data.error.message);const county=(data.features||[]).filter(f=>f.geometry&&f.geometry.type==='LineString'&&featureTouchesBoundary(f,ring)),osm=await loadOsmSupplement(box,ring,county);osmSupplementCount=osm.length;const inside=[...county,...osm];excluded=county.filter(f=>exclusionReason(f.properties));features=$('includeNonLocal').checked?inside:inside.filter(f=>!exclusionReason(f.properties));if(!features.length)throw Error('No eligible streets were found inside this boundary.');buildGraph(features,ring);
+keepStartComponent();
+if(typeof rebuildSemanticGraph!=='function')throw new Error('Semantic graph rebuild function failed to initialize.');
+rebuildSemanticGraph();
+renderGraph();
+updateStats();setStatus('Connected streets loaded. Coverage routing is ready.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
 function finishMode(){return document.querySelector('input[name=finishMode]:checked').value}
-function keepStartComponent(){const original=components.length;let best=components[0],bestD=Infinity;for(const c of components)for(const id of c.edgeIds){const e=edges[id],d=Math.min(distance(startLatLng,e.a),distance(startLatLng,e.b));if(d<bestD){bestD=d;best=c}
+function keepStartComponent(){
+ const original=components.length;
+ if(!components.length)throw new Error('No connected road component was created.');
+ let best=components[0],bestD=Infinity;
+ for(const c of components){
+  for(const id of c.edgeIds){
+   const e=edges[id];
+   if(!e)continue;
+   const d=Math.min(distance(startLatLng,e.a),distance(startLatLng,e.b));
+   if(d<bestD){bestD=d;best=c}
+  }
+ }
+ const kept=best.edgeIds.map(id=>edges[id]).filter(Boolean);
+ ignoredFragments=Math.max(0,original-1);
+ edges=kept;
+ components=[{edgeIds:edges.map((_,i)=>i),nodes:[]}];
+ edges.forEach(e=>e.component=0)
+}
+
 function rebuildSemanticGraph(){
  const nodes=new Map(),key=p=>p.lat.toFixed(5)+','+p.lng.toFixed(5);
+
  edges.forEach((e,i)=>{
-  e.ak=key(e.a);e.bk=key(e.b);e.component=0;
+  e.ak=key(e.a);
+  e.bk=key(e.b);
+  e.component=0;
   if(!nodes.has(e.ak))nodes.set(e.ak,[]);
   if(!nodes.has(e.bk))nodes.set(e.bk,[]);
-  nodes.get(e.ak).push(i);nodes.get(e.bk).push(i)
+  nodes.get(e.ak).push(i);
+  nodes.get(e.bk).push(i)
  });
+
  classifyPatrolSemantics(nodes);
- // Defensive validation: every stored cluster edge ID must resolve to a real edge.
+
+ // Revalidate all route-semantic edge IDs after connected-component pruning.
  patrolClusters=patrolClusters
   .map(ids=>ids.filter(id=>Number.isInteger(id)&&id>=0&&id<edges.length&&edges[id]))
   .filter(ids=>ids.length);
- patrolClusters.forEach((ids,cid)=>ids.forEach(id=>edges[id].clusterId=cid));
+
+ // Cluster numbering may have changed after invalid/empty sets were removed.
+ edges.forEach(e=>e.clusterId=-1);
+ patrolClusters.forEach((ids,cid)=>ids.forEach(id=>{
+  if(edges[id])edges[id].clusterId=cid
+ }));
+
  return nodes
 }
-}const kept=best.edgeIds.map(id=>edges[id]);ignoredFragments=Math.max(0,original-1);edges=kept;components=[{edgeIds:edges.map((_,i)=>i),nodes:[]}];edges.forEach(e=>e.component=0)}
+
 function buildGraph(fs,ring){const base=[],featureEnds=[];detectedLoops=0;topologyRepairs=0;boundaryExclusions=0;pairedCarriageways=0;for(let fid=0;fid<fs.length;fid++){const f=fs[fid],cs=f.geometry.coordinates;if(cs.length<2)continue;const raw=[],clipped=[];let totalLength=0,insideLength=0;for(let i=1;i<cs.length;i++){const a=L.latLng(cs[i-1][1],cs[i-1][0]),b=L.latLng(cs[i][1],cs[i][0]),len=distance(a,b);totalLength+=len;for(const [p,q] of clipSegmentToBoundary(a,b,ring)){const part=distance(p,q);if(part>.15){clipped.push({a:p,b:q});insideLength+=part}}raw.push({a,b})}if(!clipped.length)continue;const partial=insideLength<totalLength-1,shortPartial=partial&&(totalLength<150||insideLength<25);if(shortPartial){boundaryExclusions++;continue}const first=clipped[0].a,last=clipped.at(-1).b,loop=f.properties.IS_LOOP==='Y'||distance(first,last)<=18;if(loop)detectedLoops++;else featureEnds.push({p:first,fid,props:f.properties},{p:last,fid,props:f.properties});for(const part of clipped)base.push({a:part.a,b:part.b,p:f.properties,fid,loop,cuts:[0,1]})}
  insertedIntersections=0;for(let i=0;i<base.length;i++)for(let j=i+1;j<base.length;j++){if(base[i].fid===base[j].fid)continue;const x=intersection(base[i],base[j]);if(x&&x.t>.00001&&x.t<.99999&&x.u>.00001&&x.u<.99999){base[i].cuts.push(x.t);base[j].cuts.push(x.u);insertedIntersections++}}
  // Attach genuine T-junctions. Closed-loop targets receive a larger, loop-specific search radius.
