@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.2</title>
+  <title>Patrol Route v0.18.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.2</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.3</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes streets into loop/block groups and bridge/spur roads. Edit Roads mode lets you remove unwanted streets by clicking near them. Compact graph cycles with multiple approach arms are normalized as roundabouts.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
@@ -182,7 +182,7 @@ function buildGraph(fs,ring){const base=[],featureEnds=[];detectedLoops=0;topolo
  const heading=e=>{const y=e.b.lat-e.a.lat,x=(e.b.lng-e.a.lng)*Math.cos((e.a.lat+e.b.lat)*Math.PI/360);return(Math.atan2(y,x)*180/Math.PI+180)%180},angleDiff=(a,b)=>Math.min(Math.abs(a-b),180-Math.abs(a-b));for(let i=0;i<edges.length;i++){const a=edges[i];if(a.synthetic||a.loop||!a.required||a.length<20)continue;const am=interp(a.a,a.b,.5),an=normalizedRoadName(roadName(a.p));for(let j=i+1;j<edges.length;j++){const b=edges[j];if(b.synthetic||b.loop||!b.required||b.length<20||normalizedRoadName(roadName(b.p))!==an||angleDiff(heading(a),heading(b))>12)continue;const bm=interp(b.a,b.b,.5),pa=projectToSegment(am,b.a,b.b),pb=projectToSegment(bm,a.a,a.b),d=Math.min(pa.d,pb.d);if(d>=8&&d<=35&&pa.t>.05&&pa.t<.95&&pb.t>.05&&pb.t<.95){b.required=false;b.pairedWith=i;pairedCarriageways++;break}}}
  const nodes=new Map(),key=p=>p.lat.toFixed(5)+','+p.lng.toFixed(5);edges.forEach((e,i)=>{e.ak=key(e.a);e.bk=key(e.b);if(!nodes.has(e.ak))nodes.set(e.ak,[]);if(!nodes.has(e.bk))nodes.set(e.bk,[]);nodes.get(e.ak).push(i);nodes.get(e.bk).push(i)});const seen=new Set();components=[];for(const k of nodes.keys()){if(seen.has(k))continue;const stack=[k],ei=new Set(),nk=[];seen.add(k);while(stack.length){const n=stack.pop();nk.push(n);for(const id of nodes.get(n)){ei.add(id);const e=edges[id],o=e.ak===n?e.bk:e.ak;if(!seen.has(o)){seen.add(o);stack.push(o)}}}components.push({nodes:nk,edgeIds:[...ei]})}components.sort((a,b)=>b.edgeIds.length-a.edgeIds.length);components.forEach((c,i)=>c.edgeIds.forEach(id=>edges[id].component=i));}
 function classifyPatrolSemantics(nodes){
- edges.forEach(e=>{e.roundabout=false;e.mainConnector=false;e.clusterId=-1});
+ edges.forEach(e=>{e.roundabout=false;e.roundaboutApproach=false;e.mainConnector=false;e.clusterId=-1});
 
  // ROUNDABOUT NORMALIZATION
  // Prefer explicit county attributes first; otherwise detect compact cycles with
@@ -299,6 +299,53 @@ function classifyPatrolSemantics(nodes){
    if(perimeter/Math.max(1,diameter)>4.8)continue;
 
    for(const id of compEdges)roundEdges.add(id)
+  }
+ }
+
+
+ // ROUNDABOUT APPROACH ABSORPTION
+ // Short stubs immediately feeding a detected roundabout are part of the
+ // intersection/junction rather than standalone patrol branches, unless they
+ // clearly continue into additional required local coverage.
+ {
+  const roundNodes=new Set();
+  for(const id of roundEdges){
+   const e=edges[id];if(e){roundNodes.add(e.ak);roundNodes.add(e.bk)}
+  }
+
+  const graph=new Map();
+  edges.forEach((e,id)=>{
+   for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){
+    if(!graph.has(u))graph.set(u,[]);
+    graph.get(u).push({id,to:v})
+   }
+  });
+
+  const absorbed=new Set();
+  for(const rn of roundNodes){
+   for(const x of graph.get(rn)||[]){
+    if(roundEdges.has(x.id))continue;
+    const e=edges[x.id];if(!e||e.synthetic)continue;
+
+    // Only absorb genuinely short approach stubs.
+    if(e.length>85)continue;
+
+    // The far end may connect to the neighborhood, but if it immediately
+    // branches into required local streets, this edge must remain coverage.
+    const far=x.to;
+    const onward=(graph.get(far)||[]).filter(y=>y.id!==x.id);
+    const hasRequiredLocalBeyond=onward.some(y=>{
+     const oe=edges[y.id];
+     return oe && oe.required && !oe.mainConnector && !oe.roundabout;
+    });
+
+    // If no required local coverage depends on this approach, make it junction-only.
+    if(!hasRequiredLocalBeyond){
+     e.roundaboutApproach=true;
+     e.required=false;
+     absorbed.add(x.id)
+    }
+   }
   }
  }
 
@@ -499,13 +546,13 @@ function toggleRoadSelection(id){
 function renderGraph(){
  roadLayer.clearLayers();
  edges.forEach((e,id)=>{
-  const optional=!e.required&&!e.synthetic,osm=e.p.SOURCE==='OSM',round=e.roundabout,main=e.mainConnector,selected=selectedRoadIds.has(id);
-  const baseColor=round?'#6d5bd0':main?'#52718f':optional?'#86a9c5':osm?'#f59e0b':'#2583d8';
+  const optional=!e.required&&!e.synthetic,osm=e.p.SOURCE==='OSM',round=e.roundabout,roundApproach=e.roundaboutApproach,main=e.mainConnector,selected=selectedRoadIds.has(id);
+  const baseColor=round?'#6d5bd0':roundApproach?'#8b78df':main?'#52718f':optional?'#86a9c5':osm?'#f59e0b':'#2583d8';
   const color=selected?'#d92d20':baseColor;
   const weight=selected?8:round?4:main?4:optional?3:5;
   const dash=selected?null:round?'3 5':osm?'7 5':optional?'4 5':null;
   const layer=L.polyline([e.a,e.b],{color,weight,opacity:selected?1:optional?.5:.86,dashArray:dash,interactive:true})
-   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(round?'Roundabout / connector — not required coverage':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
+   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
    .addTo(roadLayer);
   layer.on('click',ev=>{
    if(!editRoadMode)return;
@@ -724,14 +771,20 @@ function buildRoute(){
   const c=order[i];
   let n=blocks[c].required;
   for(const link of children.get(c)||[]){
-   if(edges[link.edgeId]?.required||need.get(link.to))n=true
+   const e=edges[link.edgeId];
+   const bridgeRequired=!!e?.required&&!e?.roundabout&&!e?.roundaboutApproach;
+   if(bridgeRequired||need.get(link.to))n=true
   }
   need.set(c,n)
  }
 
  const activeChildren=new Map();
  for(const c of order){
-  const list=(children.get(c)||[]).filter(link=>edges[link.edgeId]?.required||need.get(link.to));
+  const list=(children.get(c)||[]).filter(link=>{
+   const e=edges[link.edgeId];
+   const bridgeRequired=!!e?.required&&!e?.roundabout&&!e?.roundaboutApproach;
+   return bridgeRequired||need.get(link.to)
+  });
   activeChildren.set(c,list)
  }
 
@@ -772,11 +825,18 @@ function buildRoute(){
   return null
  }
 
+ function edgeNeedsCoverage(id){
+  const e=edges[id];
+  if(!e)return false;
+  if(e.roundabout||e.roundaboutApproach)return false;
+  return !!e.required&&!coveredRequired.has(id)
+ }
+
  function subtreeHasUncovered(compId){
   const block=blocks[compId];
-  for(const id of block.edges)if(edges[id]?.required&&!coveredRequired.has(id))return true;
+  for(const id of block.edges)if(edgeNeedsCoverage(id))return true;
   for(const link of activeChildren.get(compId)||[]){
-   if(edges[link.edgeId]?.required&&!coveredRequired.has(link.edgeId))return true;
+   if(edgeNeedsCoverage(link.edgeId))return true;
    if(subtreeHasUncovered(link.to))return true
   }
   return false
@@ -1016,7 +1076,7 @@ function buildRoute(){
     // block/main corridor. If nothing remains in the child subtree, skip the
     // entire bridge excursion instead of visiting it just because it was active
     // when the block tree was first built.
-    const bridgeUncovered=edges[link.edgeId]?.required&&!coveredRequired.has(link.edgeId);
+    const bridgeUncovered=edgeNeedsCoverage(link.edgeId);
     const childUncovered=subtreeHasUncovered(link.to);
     if(!bridgeUncovered&&!childUncovered){
      serviced.add(link.edgeId);
@@ -1034,7 +1094,7 @@ function buildRoute(){
 
   // Now leave along the one open final branch, never returning across it.
   if(finalLink){
-   const bridgeUncovered=edges[finalLink.edgeId]?.required&&!coveredRequired.has(finalLink.edgeId);
+   const bridgeUncovered=edgeNeedsCoverage(finalLink.edgeId);
    const childUncovered=subtreeHasUncovered(finalLink.to);
    if(bridgeUncovered||childUncovered){
     serviced.add(finalLink.edgeId);
@@ -1170,7 +1230,7 @@ function buildRoute(){
  // For an open route, bridges along the one final path can avoid that return.
  let bridgeFloor=0;
  for(const id of bridgeIds){
-  const e=edges[id];if(!e?.required)continue;
+  const e=edges[id];if(!e?.required||e.roundabout||e.roundaboutApproach)continue;
   const a=compOf.get(e.ak),b=compOf.get(e.bk);
   const child=parent.get(a)===b?a:parent.get(b)===a?b:null;
   const onFinal=child!==null&&finalPath.has(child)&&mode!=='return';

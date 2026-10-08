@@ -1,36 +1,25 @@
-PATROL ROUTE v0.18.2 — RELIABLE ROAD EDITING + ROUNDABOUT TOPOLOGY
+PATROL ROUTE v0.18.3 — ROUNDABOUT APPROACH PRUNING
 
-Road editing:
-- Adds explicit Edit Roads: OFF/ON mode.
-- In edit mode, a normal map click selects the NEAREST road within 18 meters.
-  The user no longer has to hit a thin Leaflet polyline exactly.
-- Clicking a road feature directly also works while edit mode is ON.
-- Selected road features highlight red.
-- Delete Selected Roads removes them from both coverage and routing.
-- Clear Selection, Undo Last Delete, and Restore All Roads remain available.
-- Route/completed-route polylines are now non-interactive, so a displayed route
-  cannot intercept road-edit clicks.
-- Road layers are brought to the front while edit mode is active.
+Focused refinement to the v0.18 block/loop engine.
 
-Roundabouts:
-- Keeps feature/metadata roundabout recognition.
-- Adds topology-level roundabout detection using Tarjan graph bridges.
-- Finds small compact non-bridge cycle blocks even when the county splits the
-  traffic circle across multiple feature IDs.
-- Requires 2+ external approach arms.
-- Uses perimeter, diameter, edge-count, and compactness guards to avoid treating
-  ordinary neighborhood loops as roundabouts.
-- Detected roundabout edges are drivable connectors, not required coverage.
+Problem:
+A recognized roundabout could still keep a dead excursion alive because the
+short approach/main-strip stub leading to it remained marked as required coverage.
 
-Preserved:
-- v0.18 block/loop traversal engine
-- v0.18.1 live subtree pruning
-- bridge-repeat floor metrics
-- right-turn loop tie-breaking
-- county GIS + OSM supplement
-- divided-road handling
-- START / FINISH modes
-- GPS and simulation
+Changes:
+- Short edges immediately feeding a detected roundabout can be classified as
+  ROUNDABOUT APPROACH / JUNCTION ONLY.
+- These approach stubs are removed from required coverage when no required local
+  street depends on them beyond the roundabout.
+- Branch/subtree pruning now explicitly ignores roundabout and roundabout-approach
+  edges when deciding whether a branch still contains uncovered patrol work.
+- The bridge-tree need calculation and bridge-repeat floor also ignore those
+  junction-only approach edges.
+- Road-edit mode from v0.18.2 remains unchanged.
+
+Goal:
+Prevent dead trips down a main strip whose only purpose is to reach an already
+non-required roundabout, while leaving genuine frontage/side-street coverage intact.
 
 Deployment:
 Replace repository-root files and commit to main. Hard-refresh once after deployment.
