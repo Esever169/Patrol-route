@@ -1,25 +1,33 @@
-PATROL ROUTE v0.18.3 — ROUNDABOUT APPROACH PRUNING
+PATROL ROUTE v0.18.4 — JUNCTION-FEEDER SUPPRESSION + LOCAL BLOCK CONTINUITY
 
-Focused refinement to the v0.18 block/loop engine.
+Automatic main-strip / roundabout feeder suppression:
+- Starts from detected roundabout nodes.
+- Walks outward only through MAIN CONNECTOR edges.
+- Suppresses only short/simple feeder chains (maximum 420 m).
+- Any required local side street branching from the chain cancels suppression.
+- A feeder is also retained if its far end immediately serves required local coverage.
+- Suppressed feeder edges remain drivable transit, but are no longer mandatory coverage.
+- Adds Suppressed junction feeders diagnostic.
+- Branch pruning, bridge-tree need calculation, and bridge-repeat floor all ignore
+  junction-only feeder edges.
 
-Problem:
-A recognized roundabout could still keep a dead excursion alive because the
-short approach/main-strip stub leading to it remained marked as required coverage.
+In-block traversal polish:
+- Keeps the v0.18 block/loop topology engine.
+- Right-turn preference remains only a tie-breaker.
+- Adds a local-continuity score favoring choices that lead toward nearby unfinished
+  required edges in the same block.
+- Strongly favors immediately adjacent required edges so parallel fingers and
+  small subloops are completed before crossing to another part of the block.
 
-Changes:
-- Short edges immediately feeding a detected roundabout can be classified as
-  ROUNDABOUT APPROACH / JUNCTION ONLY.
-- These approach stubs are removed from required coverage when no required local
-  street depends on them beyond the roundabout.
-- Branch/subtree pruning now explicitly ignores roundabout and roundabout-approach
-  edges when deciding whether a branch still contains uncovered patrol work.
-- The bridge-tree need calculation and bridge-repeat floor also ignore those
-  junction-only approach edges.
-- Road-edit mode from v0.18.2 remains unchanged.
-
-Goal:
-Prevent dead trips down a main strip whose only purpose is to reach an already
-non-required roundabout, while leaving genuine frontage/side-street coverage intact.
+Preserved:
+- v0.18.2 reliable Edit Roads mode
+- v0.18.3 roundabout approach logic
+- live subtree pruning
+- bridge-repeat floor metrics
+- county GIS + OSM supplement
+- divided-road handling
+- START / FINISH modes
+- GPS and simulation
 
 Deployment:
 Replace repository-root files and commit to main. Hard-refresh once after deployment.
