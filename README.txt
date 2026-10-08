@@ -1,15 +1,21 @@
-PATROL ROUTE v0.16.1 — ROUTE BUILDER HOTFIX
+PATROL ROUTE v0.16.2 — EDGE-ID LIFECYCLE FIX
 
-Fixes for Build Optimized Route:
-- Route button now shows a visible "Building…" status before optimization starts.
-- Runtime exceptions are caught and displayed in Route Status instead of failing silently.
-- Exact odd-node matching is capped at 10 terminals; larger pockets use a fast greedy + pair-swap optimizer.
-- Local shortest-path trees are cached per source node instead of recomputed for every pair.
-- Connector-street cleanup uses a Set instead of repeatedly rebuilding/scanning the entire edge list.
-- Cleanup loop has a smaller safety bound and detects a stalled route explicitly.
-- Strict pocket completion, U-turn penalties, main-strip penalties, roundabout handling, county GIS, divided-road logic, GPS and simulation are preserved.
-- New service-worker cache version prevents v0.16 from persisting after deployment.
+Root cause fixed:
+v0.16/v0.16.1 classified patrol pockets before keepStartComponent() removed
+other connected components. That operation rebuilt/reindexed the edges array,
+leaving patrolClusters with stale edge IDs. Build Optimized Route then attempted
+to read .required from an edge index that no longer existed.
+
+Changes:
+- Connected-component pruning now happens BEFORE patrol semantic classification.
+- Rebuilds edge keys, adjacency and pocket classification after the final component is selected.
+- Reindexes cluster IDs against the final edges array.
+- Validates every cluster edge ID before route building.
+- Adds defensive missing-edge errors instead of undefined-property crashes.
+- Preserves v0.16.1 bounded matching/performance improvements.
+- Preserves strict pocket completion, U-turn/main-strip penalties, roundabout logic,
+  county GIS, divided-road reduction, GPS, simulation and GitHub Pages deployment.
+- New service-worker cache version.
 
 Deployment:
-Replace the repository-root files with this package and commit to main.
-Hard-refresh once after GitHub Pages deploys.
+Replace repository-root files and commit to main. Hard-refresh once after deployment.
