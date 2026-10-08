@@ -1,28 +1,22 @@
-PATROL ROUTE v0.17 — ZONE-LOCKED ROUTING ENGINE
+PATROL ROUTE v0.17.1 — DYNAMIC ZONE SEQUENCING FIX
 
-Why this version exists:
-Full simulation of v0.16.3 showed that "hard pockets" were still too large and
-allowed geographic ping-pong inside a single connected pocket. Required main
-roads were also being cleaned up late, causing repeated travel.
+v0.17 failure:
+The app chose the entire zone order before it knew where each zone's internal
+coverage route would actually finish. The real exit point could differ from the
+predicted entry/transition point, causing the next preselected zone to become
+unreachable once completed-zone locks were applied.
 
-Major changes:
-- Replaces simple connected-component pockets with patrol ZONES based on
-  articulation/branch structure of the local required-road graph.
-- Oversized zones are split geographically so one huge local network cannot
-  behave as a single pocket.
-- Zone order is selected first and then LOCKED.
-- Once a zone is completed, transition routing is forbidden from entering it again.
-- Required connector/main-road segments are credited whenever they are traversed
-  between zones; already-covered connector mileage is not scheduled again later.
-- Adds maneuver-history detection: returning to a recently occupied intersection
-  within the previous three moves is treated like a U-turn/reversal.
-- Roundabout handling remains connector-only and graph-level compact-cycle aware.
-- Auto-finish ends naturally; Return to START adds only the final return after
-  all required coverage is complete.
-- Diagnostics show zone re-entries, connector coverage credits, intersection
-  reversals, and main-strip repeats.
-- County GIS, OSM supplement, divided-road reduction, GPS and simulation remain.
+v0.17.1:
+- Chooses the next zone only AFTER the current zone is fully completed.
+- Uses the actual current position / true previous-zone exit.
+- Keeps completed REQUIRED LOCAL coverage streets locked.
+- Leaves connector streets, roundabouts and shared articulation junctions usable.
+- Does not silently re-enter completed local coverage.
+- Reports the exact unfinished zone IDs if zoning still produces an unreachable island.
+- Preserves zone completion, connector coverage credit, maneuver-history reversal penalties,
+  main-strip repeat penalties, county GIS, divided-road reduction, GPS and simulation.
+- Uses a new service-worker cache.
 
 Deployment:
 Replace repository-root files and commit to main.
-Hard-refresh once after GitHub Pages deploys.
+Hard-refresh once after deployment.

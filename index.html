@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.17</title>
+  <title>Patrol Route v0.17.1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.17</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.17.1</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app now builds geographic patrol zones from branch/articulation structure, locks each zone after completion, and uses connector streets only to move between unfinished zones.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
@@ -378,7 +378,7 @@ function buildRoute(){
    if(targetNodes.has(u)){const ids=[];let k=key;while(k!==sk){const p=prev.get(k);if(!p)break;ids.unshift(p.id);k=p.key}return{ids,cost:du,node:u}}
    for(const x of adj.get(u)||[]){
     const e=edges[x.id];
-    if(e.clusterId>=0&&forbiddenZones.has(e.clusterId))continue;
+    if(e.clusterId>=0&&forbiddenZones.has(e.clusterId)&&e.required&&!e.mainConnector&&!e.roundabout)continue;
     if(e.required&&e.clusterId>=0&&!allowLocal)continue;
     let c=e.length+maneuverPenalty(pid,u,x.id,x.to);
     const uses=edgeUses.get(x.id)||0;
@@ -451,36 +451,69 @@ function buildRoute(){
 
  function zoneTargets(cid){const set=new Set();for(const id of patrolClusters[cid]||[]){const e=edges[id];if(e){set.add(e.ak);set.add(e.bk)}}return set}
 
- // Choose zone order ONCE, then lock it.
- const zoneOrder=[],simCompleted=new Set();let simNode=current,simEdge=inEdge;
- while(zoneOrder.length<patrolClusters.length){
-  let best=null;
+ // Choose the NEXT zone only after the current zone has actually been solved.
+ // The real exit point is known only after the current zone is complete.
+ function unfinishedZoneIds(){
+  const out=[];
   for(let cid=0;cid<patrolClusters.length;cid++){
-   if(simCompleted.has(cid)||!(patrolClusters[cid]||[]).some(id=>edges[id]&&edges[id].required))continue;
-   const forbidden=new Set(simCompleted);
-   let p=transitionPath(simNode,simEdge,zoneTargets(cid),forbidden,false);
-   if(!p)p=transitionPath(simNode,simEdge,zoneTargets(cid),forbidden,true);
-   if(!p)continue;
-   // Favor geographic progression by penalizing crossing back through previously completed zone territory.
-   const score=p.cost;
-   if(!best||score<best.score)best={cid,p,score}
+   if(completedZones.has(cid))continue;
+   if((patrolClusters[cid]||[]).some(id=>edges[id]&&edges[id].required&&!coveredRequired.has(id)))out.push(cid);
   }
-  if(!best)break;
-  zoneOrder.push(best.cid);simCompleted.add(best.cid);simNode=best.p.node;simEdge=best.p.ids.at(-1)??simEdge
+  return out
  }
 
- // Execute locked zone order. Completed zones are forbidden forever afterward.
- for(const cid of zoneOrder){
-  const forbidden=new Set(completedZones);
-  let trans=transitionPath(current,inEdge,zoneTargets(cid),forbidden,false);
-  if(!trans)trans=transitionPath(current,inEdge,zoneTargets(cid),forbidden,true);
-  if(!trans){setStatus('Could not reach patrol zone '+(cid+1)+' without re-entering a completed zone.','error');return}
-  appendPath(trans.ids);
+ function chooseNextZone(){
+  let best=null;
+  const remaining=unfinishedZoneIds();
 
-  if(completedZones.has(cid)){routeQuality.reentries++;setStatus('Unexpected patrol-zone re-entry detected.','error');return}
-  const plan=solveZone(cid,current);
-  if(!plan){setStatus('Could not produce a continuous route inside patrol zone '+(cid+1)+'.','error');return}
-  appendPath(plan.ids);completedZones.add(cid)
+  for(const cid of remaining){
+   const targets=zoneTargets(cid);
+
+   // Completed local coverage streets stay locked. Connector streets,
+   // roundabouts and articulation junctions remain available.
+   let p=transitionPath(current,inEdge,targets,new Set(completedZones),false);
+
+   // If there is no connector-only route, unfinished local streets may be
+   // traversed, but completed-zone local coverage remains locked.
+   if(!p)p=transitionPath(current,inEdge,targets,new Set(completedZones),true);
+   if(!p)continue;
+
+   if(!best||p.cost<best.score)best={cid,p,score:p.cost}
+  }
+  return best
+ }
+
+ let zoneGuard=0;
+ while(unfinishedZoneIds().length && zoneGuard++<patrolClusters.length+20){
+  const next=chooseNextZone();
+
+  if(!next){
+   const remain=unfinishedZoneIds().map(cid=>cid+1).join(', ');
+   setStatus('No legal connector path remains to unfinished patrol zone(s): '+remain+'. Completed local coverage stayed locked.','error');
+   return
+  }
+
+  appendPath(next.p.ids);
+
+  if(completedZones.has(next.cid)){
+   routeQuality.reentries++;
+   setStatus('Unexpected patrol-zone re-entry detected before zone '+(next.cid+1)+'.','error');
+   return
+  }
+
+  const plan=solveZone(next.cid,current);
+  if(!plan){
+   setStatus('Could not produce a continuous route inside patrol zone '+(next.cid+1)+'.','error');
+   return
+  }
+
+  appendPath(plan.ids);
+  completedZones.add(next.cid)
+ }
+
+ if(zoneGuard>=patrolClusters.length+20){
+  setStatus('Zone sequencing exceeded its safety limit.','error');
+  return
  }
 
  // Any required connector segment traversed during zone transitions is already
