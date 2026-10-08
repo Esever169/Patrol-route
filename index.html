@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.17.1</title>
+  <title>Patrol Route v0.17.2</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,12 +22,12 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.17.1</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.17.2</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app now builds geographic patrol zones from branch/articulation structure, locks each zone after completion, and uses connector streets only to move between unfinished zones.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app builds geographic patrol zones from branch/articulation structure, merges tiny islands, and treats completed-zone streets as last-resort transit rather than absolute walls.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button></section>
     <section class="card"><h2>Route status</h2><div id="status" class="status">Adjust the boundary, choose START, then load roads.</div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div><div id="progressText" class="progress-text">Route not started</div><button id="routeBtn" disabled>Build Optimized Route</button><button id="reverseBtn" class="secondary" disabled>Reverse Route</button><button id="simulateBtn" class="secondary" disabled>Simulate Drive</button><button id="gpsBtn" class="secondary" disabled>Use Live GPS</button></section>
-    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Patrol zones</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Zone re-entries</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
+    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Patrol zones</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Zone re-entries</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
     <section class="card"><h2>Route efficiency</h2><div class="stats"><span>Unique coverage</span><b id="uniqueMetric">—</b><span>Baseline double-back</span><b id="baselineMetric">—</b><span>Optimized route</span><b id="totalMetric">—</b><span>Miles saved</span><b id="savingsMetric">—</b><span>Repeated travel</span><b id="repeatMetric">—</b><span>Efficiency</span><b id="effMetric">—</b><span>Most repeated street</span><b id="repeatedStreetMetric">—</b><span>Optimized FINISH</span><b id="finishMetric">—</b></div></section>
   </aside>
   <div id="map"></div>
@@ -44,7 +44,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,att
 const drawn=new L.FeatureGroup().addTo(map), roadLayer=L.layerGroup().addTo(map), gapLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map), markerLayer=L.layerGroup().addTo(map);
 const shapeStyle={color:'#ffd34e',weight:3,fillOpacity:.06};
 const drawControl=new L.Control.Draw({position:'topright',draw:{polygon:{shapeOptions:shapeStyle},rectangle:{shapeOptions:shapeStyle},circle:{shapeOptions:shapeStyle,showRadius:true,metric:true,feet:true},polyline:false,circlemarker:false,marker:false},edit:{featureGroup:drawn,remove:false}}).addTo(map);
-let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0};
+let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,patrolClusters=[],routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0};
 const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,-82.5348],[28.4848,-82.5524]],{color:'#ffd34e',weight:3,fillOpacity:.06}).addTo(drawn); boundary=defaultBoundary;
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
@@ -78,7 +78,7 @@ $('routeBtn').onclick=async()=>{
 };
 $('reverseBtn').onclick=reverseRoute; $('simulateBtn').onclick=simulate; $('gpsBtn').onclick=liveGps; $('includeNonLocal').onchange=()=>features.length&&loadRoads();
 function setStatus(t,c=''){$('status').textContent=t;$('status').className='status '+c}
-function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat','reentryStat','connectorCreditStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
+function clearResults(){roadLayer.clearLayers();gapLayer.clearLayers();routeLayer.clearLayers();features=[];edges=[];components=[];gapRecords=[];routeCoords=[];routeCum=[];routeEdgeIds=[];routeLine=completedLine=patrolMarker=null;progressIndex=0;$('progressFill').style.width='0%';$('progressText').textContent='Route not started';for(const id of ['uniqueMetric','baselineMetric','totalMetric','savingsMetric','repeatMetric','effMetric','repeatedStreetMetric','finishMetric','uturnStat','mainRepeatStat','reentryStat','connectorCreditStat','forcedTransitStat'])$(id).textContent='—';$('routeBtn').disabled=true;$('reverseBtn').disabled=true;$('simulateBtn').disabled=true;}
 function boundaryRing(){if(boundary instanceof L.Circle){const c=boundary.getLatLng(),r=boundary.getRadius(),pts=[];for(let i=0;i<72;i++){const a=i*2*Math.PI/72,dy=Math.sin(a)*r/R*180/Math.PI,dx=Math.cos(a)*r/(R*Math.cos(c.lat*Math.PI/180))*180/Math.PI;pts.push(L.latLng(c.lat+dy,c.lng+dx))}return pts}return boundary.getLatLngs()[0]}
 function pointInPoly(p,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.lat>p.lat)!=(b.lat>p.lat))&&(p.lng<(b.lng-a.lng)*(p.lat-a.lat)/(b.lat-a.lat)+a.lng))inside=!inside;}return inside}
 function segmentCrossesBoundary(a,b,ring){if(pointInPoly(a,ring)||pointInPoly(b,ring))return true;for(let i=0,j=ring.length-1;i<ring.length;j=i++)if(intersection({a,b},{a:ring[j],b:ring[i]}))return true;return false}
@@ -302,6 +302,46 @@ function classifyPatrolSemantics(nodes){
  }
 
  patrolClusters=refined.map(z=>[...z.edges]);
+
+ // Merge tiny articulation-created islands into a neighboring zone so a
+ // subdivision is not fragmented into a dozen 1-3 street patrol areas.
+ function zoneAdjacency(aIds,bIds){
+  const aNodes=new Set();
+  for(const id of aIds){const e=edges[id];if(e){aNodes.add(e.ak);aNodes.add(e.bk)}}
+  let shared=0,minD=Infinity;
+  for(const id of bIds){
+   const e=edges[id];if(!e)continue;
+   for(const k of [e.ak,e.bk])if(aNodes.has(k))shared++;
+   for(const aid of aIds){
+    const ae=edges[aid];if(!ae)continue;
+    minD=Math.min(minD,distance(interp(ae.a,ae.b,.5),interp(e.a,e.b,.5)))
+   }
+  }
+  return {shared,minD}
+ }
+
+ let merging=true,mergePass=0;
+ while(merging&&mergePass++<8){
+  merging=false;
+  for(let i=0;i<patrolClusters.length;i++){
+   const ids=patrolClusters[i],len=ids.reduce((sum,id)=>sum+(edges[id]?.length||0),0);
+   if(ids.length>3&&len>150)continue;
+   let bestJ=-1,bestScore=-Infinity;
+   for(let j=0;j<patrolClusters.length;j++){
+    if(i===j)continue;
+    const a=zoneAdjacency(ids,patrolClusters[j]);
+    const score=a.shared*10000-(Number.isFinite(a.minD)?a.minD:9999);
+    if(score>bestScore){bestScore=score;bestJ=j}
+   }
+   if(bestJ>=0){
+    patrolClusters[bestJ]=[...new Set([...patrolClusters[bestJ],...ids])];
+    patrolClusters.splice(i,1);
+    merging=true;
+    break
+   }
+  }
+ }
+
  edges.forEach(e=>e.clusterId=-1);
  patrolClusters.forEach((ids,cid)=>ids.forEach(id=>{if(edges[id])edges[id].clusterId=cid}))
 }
@@ -318,7 +358,7 @@ function buildRoute(){
  if(!edges.length){setStatus('Load roads before building the route.','error');return}
  setStatus('Optimizing patrol zones and connector sequence…');
 
- routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0};
+ routeLayer.clearLayers();progressIndex=0;routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0};
  $('uturnStat').textContent='—';$('mainRepeatStat').textContent='—';$('reentryStat').textContent='—';$('connectorCreditStat').textContent='—';
 
  const adj=new Map(),nodePoint=new Map();
@@ -371,16 +411,18 @@ function buildRoute(){
  }
  function appendPath(ids){for(const id of ids)appendEdge(id)}
 
- function transitionPath(source,prevId,targetNodes,forbiddenZones=new Set(),allowLocal=false){
+ function transitionPath(source,prevId,targetNodes,forbiddenZones=new Set(),allowLocal=false,allowCompletedTransit=false){
   const dist=new Map(),prev=new Map(),q=[],sk=source+'|'+(prevId===null?'x':prevId);dist.set(sk,0);q.push([0,source,prevId]);
   while(q.length){
    q.sort((a,b)=>a[0]-b[0]);const [du,u,pid]=q.shift(),key=u+'|'+(pid===null?'x':pid);if(du!==dist.get(key))continue;
    if(targetNodes.has(u)){const ids=[];let k=key;while(k!==sk){const p=prev.get(k);if(!p)break;ids.unshift(p.id);k=p.key}return{ids,cost:du,node:u}}
    for(const x of adj.get(u)||[]){
     const e=edges[x.id];
-    if(e.clusterId>=0&&forbiddenZones.has(e.clusterId)&&e.required&&!e.mainConnector&&!e.roundabout)continue;
-    if(e.required&&e.clusterId>=0&&!allowLocal)continue;
+    const inCompleted=e.clusterId>=0&&forbiddenZones.has(e.clusterId)&&e.required&&!e.mainConnector&&!e.roundabout;
+    if(inCompleted&&!allowCompletedTransit)continue;
+    if(e.required&&e.clusterId>=0&&!allowLocal&&!inCompleted)continue;
     let c=e.length+maneuverPenalty(pid,u,x.id,x.to);
+    if(inCompleted)c+=25000+(edgeUses.get(x.id)||0)*5000;
     const uses=edgeUses.get(x.id)||0;
     if(e.mainConnector){const n=normalizedRoadName(roadName(e.p)),su=mainStreetUses.get(n)||0;c+=su*1400+uses*800}
     else if(uses)c+=uses*500;
@@ -468,17 +510,19 @@ function buildRoute(){
 
   for(const cid of remaining){
    const targets=zoneTargets(cid);
+   const locked=new Set(completedZones);
 
-   // Completed local coverage streets stay locked. Connector streets,
-   // roundabouts and articulation junctions remain available.
-   let p=transitionPath(current,inEdge,targets,new Set(completedZones),false);
+   let p=transitionPath(current,inEdge,targets,locked,false,false);
+   if(!p)p=transitionPath(current,inEdge,targets,locked,true,false);
 
-   // If there is no connector-only route, unfinished local streets may be
-   // traversed, but completed-zone local coverage remains locked.
-   if(!p)p=transitionPath(current,inEdge,targets,new Set(completedZones),true);
+   let forced=false;
+   if(!p){
+    p=transitionPath(current,inEdge,targets,locked,true,true);
+    forced=!!p;
+   }
    if(!p)continue;
 
-   if(!best||p.cost<best.score)best={cid,p,score:p.cost}
+   if(!best||p.cost<best.score)best={cid,p,score:p.cost,forced}
   }
   return best
  }
@@ -493,6 +537,10 @@ function buildRoute(){
    return
   }
 
+  if(next.forced){
+   routeQuality.forcedTransit++;
+   routeQuality.reentries++;
+  }
   appendPath(next.p.ids);
 
   if(completedZones.has(next.cid)){
@@ -531,9 +579,12 @@ function buildRoute(){
   }
   const targets=new Set();for(const id of remainingMain){targets.add(edges[id].ak);targets.add(edges[id].bk)}
   const forbidden=new Set(completedZones);
-  let p=transitionPath(current,inEdge,targets,forbidden,false);
-  if(!p)p=transitionPath(current,inEdge,targets,forbidden,true);
-  if(!p||!p.ids.length){setStatus('Connector coverage cleanup would require re-entering a completed patrol zone.','error');return}
+  let p=transitionPath(current,inEdge,targets,forbidden,false,false);
+  if(!p)p=transitionPath(current,inEdge,targets,forbidden,true,false);
+  let forced=false;
+  if(!p){p=transitionPath(current,inEdge,targets,forbidden,true,true);forced=!!p}
+  if(!p||!p.ids.length){setStatus('Connector coverage cleanup could not reach the remaining required street.','error');return}
+  if(forced){routeQuality.forcedTransit++;routeQuality.reentries++}
   appendPath(p.ids)
  }
 
@@ -543,7 +594,7 @@ function buildRoute(){
  if(mode==='choose'||mode==='return'){
   const target=mode==='return'?start:nearest(finishLatLng);
   if(target&&target!==current){
-   let p=transitionPath(current,inEdge,new Set([target]),new Set(),true);
+   let p=transitionPath(current,inEdge,new Set([target]),new Set(completedZones),true,true);
    if(!p){setStatus('Coverage completed, but the selected FINISH could not be reached.','error');return}
    appendPath(p.ids)
   }
@@ -570,9 +621,10 @@ function buildRoute(){
  $('mainRepeatStat').textContent=routeQuality.mainRepeats;
  $('reentryStat').textContent=routeQuality.reentries;
  $('connectorCreditStat').textContent=routeQuality.connectorCredits;
+ $('forcedTransitStat').textContent=routeQuality.forcedTransit;
  $('reverseBtn').disabled=mode!=='return';$('simulateBtn').disabled=false;$('gpsBtn').disabled=false;updateProgress(0);
 
- setStatus('Zone-locked patrol route built: completed zones are not revisited, connector coverage is credited during transitions, and reversal maneuvers are heavily penalized.','good')
+ setStatus('Gateway-aware patrol route built: zones are completed sequentially, tiny zones are merged, and completed-zone streets are used only when no cleaner connector route exists.','good')
 }
 function densifyRoute(points,step){if(points.length<2)return points.slice();const out=[points[0]];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.max(1,Math.ceil(distance(a,b)/step));for(let j=1;j<=n;j++)out.push(interp(a,b,j/n))}return out}
 function setRouteDistances(){routeCum=[0];for(let i=1;i<routeCoords.length;i++)routeCum.push(routeCum.at(-1)+distance(routeCoords[i-1],routeCoords[i]))}
