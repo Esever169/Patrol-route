@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.8</title>
+  <title>Patrol Route v0.18.9</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.8</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.9</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes streets into loop/block groups and bridge/spur roads. Unneeded roundabout/junction corridors are now removed from the routing graph before block decomposition when required coverage remains connected without them.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
@@ -209,21 +209,21 @@ function excludeUnneededJunctionCorridors(){
   if(e.mainConnector){const n=normalizedRoadName(roadName(e.p));if(!mainByName.has(n))mainByName.set(n,new Set());mainByName.get(n).add(id)}
  });
 
- // Test main corridors that are major-class roads or spatially adjacent to a
- // detected junction corridor. Exact node contact is not required, but ordinary
- // residential streets such as Hornbeam must not become removal candidates just
- // because their length and branch count made them useful neighborhood spines.
+ // Test only consistently county-classified main corridors that are adjacent to
+ // a detected junction. Long residential streets must not become candidates just
+ // because their length and branch count made them neighborhood spines.
  const groups=[];
  for(const [name,ids] of mainByName){
   const nodes=new Set();for(const id of ids){nodes.add(edges[id].ak);nodes.add(edges[id].bk)}
   const group=new Set(ids),queue=[...junctionIds].filter(id=>nodes.has(edges[id].ak)||nodes.has(edges[id].bk));
   for(const id of queue){if(group.has(id))continue;group.add(id);nodes.add(edges[id].ak);nodes.add(edges[id].bk);for(const other of junctionIds)if(!group.has(other)&&(nodes.has(edges[other].ak)||nodes.has(edges[other].bk)))queue.push(other)}
+  const typed=[...ids].filter(id=>['MINOR','MAJOR'].includes(String(edges[id].p.TYPE||'').toUpperCase())),typedRatio=typed.length/Math.max(1,ids.size);
   const forced=[...ids].some(id=>String(edges[id].p.TYPE||'').toUpperCase()==='MAJOR'||['PKWY','MNCL','TRKR'].includes(String(edges[id].p.ROAD_TYPE||'').toUpperCase()));
   const nearby=[...ids].some(id=>[...junctionIds].some(jid=>{
    const a=edges[id],b=edges[jid];
-   return Math.min(projectToSegment(a.a,b.a,b.b).d,projectToSegment(a.b,b.a,b.b).d,projectToSegment(b.a,a.a,a.b).d,projectToSegment(b.b,a.a,a.b).d)<=60
+   return Math.min(projectToSegment(a.a,b.a,b.b).d,projectToSegment(a.b,b.a,b.b).d,projectToSegment(b.a,a.a,a.b).d,projectToSegment(b.b,a.a,a.b).d)<=30
   }));
-  if(forced||nearby)groups.push({name,ids:group,mainIds:new Set(ids)})
+  if(forced||typedRatio>=.5&&nearby)groups.push({name,ids:group,mainIds:new Set(ids)})
  }
  groups.sort((a,b)=>[...b.ids].reduce((s,id)=>s+edges[id].length,0)-[...a.ids].reduce((s,id)=>s+edges[id].length,0));
 
