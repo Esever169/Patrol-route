@@ -1,4 +1,4 @@
-PATROL ROUTE v0.18.9 — CONSERVATIVE MAIN-CORRIDOR EXCLUSION
+PATROL ROUTE v0.18.10 — CONNECTED RESIDENTIAL PRESERVATION
 
 Why this change:
 v0.18.4 only changed roundabout feeder corridors to non-required coverage.
@@ -6,7 +6,7 @@ Those roads still remained in the routing graph and could distort block/bridge
 topology or prevent the block solver from finding a continuous route.
 Manual deletion worked because it removed the roads before topology was built.
 
-v0.18.9 applies the whole-corridor rule conservatively:
+v0.18.10 applies the whole-corridor rule conservatively:
 - Evaluates major-class roads, or named corridors where at least half of the
   segments carry a county MINOR/MAJOR classification and lie within 30 m of a
   detected junction corridor.
@@ -19,6 +19,9 @@ v0.18.9 applies the whole-corridor rule conservatively:
   and main-strip pieces and keeps the portions genuinely required for transit.
 - Ordinary residential spines with unclassified county segments remain protected,
   including Hornbeam, Obsidian, Goldfoil, Feldspar and similar neighborhood roads.
+- Junction and loop candidates are no longer greedily deleted one segment at a
+  time. Only the proven-redundant main corridor and pieces truly orphaned by its
+  removal are deleted; connected residential loops such as Genovesa remain.
 - Rebuilds graph keys and semantic classification after exclusion.
 - The block/loop engine then sees the same reduced topology that manual deletion
   would have produced.

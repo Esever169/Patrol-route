@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.9</title>
+  <title>Patrol Route v0.18.10</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.9</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.10</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. The app decomposes streets into loop/block groups and bridge/spur roads. Unneeded roundabout/junction corridors are now removed from the routing graph before block decomposition when required coverage remains connected without them.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
@@ -214,9 +214,7 @@ function excludeUnneededJunctionCorridors(){
  // because their length and branch count made them neighborhood spines.
  const groups=[];
  for(const [name,ids] of mainByName){
-  const nodes=new Set();for(const id of ids){nodes.add(edges[id].ak);nodes.add(edges[id].bk)}
-  const group=new Set(ids),queue=[...junctionIds].filter(id=>nodes.has(edges[id].ak)||nodes.has(edges[id].bk));
-  for(const id of queue){if(group.has(id))continue;group.add(id);nodes.add(edges[id].ak);nodes.add(edges[id].bk);for(const other of junctionIds)if(!group.has(other)&&(nodes.has(edges[other].ak)||nodes.has(edges[other].bk)))queue.push(other)}
+  const group=new Set(ids);
   const typed=[...ids].filter(id=>['MINOR','MAJOR'].includes(String(edges[id].p.TYPE||'').toUpperCase())),typedRatio=typed.length/Math.max(1,ids.size);
   const forced=[...ids].some(id=>String(edges[id].p.TYPE||'').toUpperCase()==='MAJOR'||['PKWY','MNCL','TRKR'].includes(String(edges[id].p.ROAD_TYPE||'').toUpperCase()));
   const nearby=[...ids].some(id=>[...junctionIds].some(jid=>{
@@ -244,18 +242,23 @@ function excludeUnneededJunctionCorridors(){
   }
  }
 
- // Remove any remaining junction-only pieces when safe. If a whole main
- // corridor is necessary, this leaves only the pieces genuinely needed as transit.
- for(const id of junctionIds){
-  if(candidateIds.has(id))continue;
-  const trial=new Set([...candidateIds,id]);
-  if(requiredReachableWithout(trial))candidateIds.add(id)
- }
-
  if(!candidateIds.size){suppressedFeeders=0;return 0}
 
  const removed=edges.filter((_,id)=>candidateIds.has(id));
  edges=edges.filter((_,id)=>!candidateIds.has(id));
+
+ // After removing the proven-redundant main corridor, discard only genuinely
+ // orphaned pieces. Connected residential loops and junction-classified streets
+ // stay in the graph; they are no longer deleted merely because they are optional.
+ const remainingAdj=new Map(),remainingPoints=new Map();
+ edges.forEach(e=>{remainingPoints.set(e.ak,e.a);remainingPoints.set(e.bk,e.b);for(const [u,v] of [[e.ak,e.bk],[e.bk,e.ak]]){if(!remainingAdj.has(u))remainingAdj.set(u,[]);remainingAdj.get(u).push(v)}});
+ let remainingStart=null,remainingBest=Infinity;
+ for(const [k,p] of remainingPoints){const d=distance(startLatLng,p);if(d<remainingBest){remainingBest=d;remainingStart=k}}
+ const reachable=new Set(remainingStart?[remainingStart]:[]),walk=remainingStart?[remainingStart]:[];
+ while(walk.length){const u=walk.pop();for(const v of remainingAdj.get(u)||[])if(!reachable.has(v)){reachable.add(v);walk.push(v)}}
+ const orphaned=edges.filter(e=>!reachable.has(e.ak)||!reachable.has(e.bk));
+ edges=edges.filter(e=>reachable.has(e.ak)&&reachable.has(e.bk));
+ removed.push(...orphaned);
  suppressedFeeders=removed.length;
 
  // Rebuild all node keys and semantic classifications against the reduced graph.
