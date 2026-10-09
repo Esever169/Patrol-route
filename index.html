@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.19.0</title>
+  <title>Patrol Route v0.19.1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,10 +22,10 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Map-Buddy v0.19.0</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Map-Buddy v0.19.1</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform patrol area. Map-Buddy retains the connected street network and skips only terminal dead-end branches shorter than 500 ft. Skipped branches remain visible in gray.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform patrol area. Map-Buddy retains the connected street network and skips only terminal dead-end branches shorter than 200 ft. Skipped branches remain visible in gray.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
 <button id="editRoadModeBtn" class="secondary" disabled style="margin-top:8px">Edit Roads: OFF</button>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
   <button id="deleteRoadBtn" class="secondary" disabled>Delete Selected Roads</button>
@@ -120,9 +120,9 @@ async function loadRoads(){try{if(!boundary)throw Error('Draw a patrol boundary 
 keepStartComponent();
 if(typeof rebuildSemanticGraph!=='function')throw new Error('Semantic graph rebuild function failed to initialize.');
 rebuildSemanticGraph();
-shortBranchesSkipped=markShortTerminalBranches(152.4);
+shortBranchesSkipped=markShortTerminalBranches(60.96);
 renderGraph();
-updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded. '+shortBranchesSkipped+' terminal branch'+(shortBranchesSkipped===1?'':'es')+' under 500 ft '+(shortBranchesSkipped===1?'was':'were')+' left visible but skipped from required coverage. Build the route when ready.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
+updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded. '+shortBranchesSkipped+' terminal branch'+(shortBranchesSkipped===1?'':'es')+' under 200 ft '+(shortBranchesSkipped===1?'was':'were')+' left visible but skipped from required coverage. Build the route when ready.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
 function finishMode(){return document.querySelector('input[name=finishMode]:checked').value}
 function keepStartComponent(){
  const original=components.length;
@@ -172,7 +172,7 @@ function rebuildSemanticGraph(){
  return nodes
 }
 
-function markShortTerminalBranches(maxMeters=152.4){
+function markShortTerminalBranches(maxMeters=60.96){
  shortBranchesSkipped=0;
  edges.forEach(e=>{e.visibleSkipped=false});
  const incident=new Map();
@@ -198,8 +198,8 @@ function markShortTerminalBranches(maxMeters=152.4){
   if(chain.some(id=>{const e=edges[id];return !e||e.synthetic||e.roundabout||e.roundaboutApproach||e.junctionFeeder}))continue;
   const nearAnchor=anchors.some(p=>chain.some(id=>{const e=edges[id];return projectToSegment(p,e.a,e.b).d<=30}));
   if(nearAnchor)continue;
-  for(const id of chain){edges[id].required=false;edges[id].visibleSkipped=true}
-  shortBranchesSkipped++
+  const branchId=shortBranchesSkipped++;
+  for(const id of chain){edges[id].required=false;edges[id].visibleSkipped=true;edges[id].shortBranchId=branchId}
  }
  return shortBranchesSkipped
 }
@@ -765,7 +765,7 @@ function renderGraph(){
   const weight=selected?8:skipped?4:round?4:main?4:optional?3:5;
   const dash=selected?null:skipped?'8 6':round?'3 5':osm?'7 5':optional?'4 5':null;
   const layer=L.polyline([e.a,e.b],{color,weight,opacity:selected?1:optional?.5:.86,dashArray:dash,interactive:true})
-   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(skipped?'Short terminal branch — visible, under 500 ft, and skipped':round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':feeder?'Junction feeder — retained for connectivity':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
+   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(skipped?'Short terminal branch — visible, under 200 ft, and skipped':round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':feeder?'Junction feeder — retained for connectivity':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
    .addTo(roadLayer);
   layer.on('click',ev=>{
    if(!editRoadMode)return;
@@ -839,12 +839,16 @@ function updateStats(){const covered=edges.filter(e=>!e.synthetic&&e.required),n
 function retryWithOneTransitSegment(){
  const requiredDegree=new Map(),candidates=[];
  for(const e of edges)if(e.required){requiredDegree.set(e.ak,(requiredDegree.get(e.ak)||0)+1);requiredDegree.set(e.bk,(requiredDegree.get(e.bk)||0)+1)}
- edges.forEach((e,id)=>{if(!e.autoTransitOnly||e.required)return;const score=(requiredDegree.get(e.ak)||0)+(requiredDegree.get(e.bk)||0);candidates.push({id,score,length:e.length})});
+ edges.forEach((e,id)=>{if(e.required||(!e.autoTransitOnly&&!e.visibleSkipped))return;const score=(requiredDegree.get(e.ak)||0)+(requiredDegree.get(e.bk)||0);candidates.push({id,score,length:e.length})});
  if(!candidates.length)return false;
  candidates.sort((a,b)=>b.score-a.score||a.length-b.length);
- const chosen=edges[candidates[0].id];chosen.required=true;chosen.autoTransitOnly=false;
+ const chosen=edges[candidates[0].id],branchId=chosen.shortBranchId;
+ if(Number.isInteger(branchId)){
+  for(const e of edges)if(e.shortBranchId===branchId){e.required=true;e.visibleSkipped=false;e.shortBranchId=null}
+  shortBranchesSkipped=Math.max(0,shortBranchesSkipped-1)
+ }else{chosen.required=true;chosen.autoTransitOnly=false}
  rebuildSemanticGraph();renderGraph();updateStats();
- setStatus('Adjusting the transit-only corridor to preserve continuous routing…');
+ setStatus('Restoring one skipped branch needed for continuous routing…');
  setTimeout(buildRoute,0);
  return true
 }

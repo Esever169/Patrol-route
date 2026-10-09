@@ -1,4 +1,4 @@
-PATROL ROUTE MAP-BUDDY v0.19.0
+PATROL ROUTE MAP-BUDDY v0.19.1
 
 PURPOSE
 Select a patrol area in Hernando County, build a practical coverage route, and
@@ -10,13 +10,15 @@ CORE COVERAGE RULES
 - Residential and connector roads remain available for travel.
 - Only terminal branches from a dead end to the final junction are considered
   for automatic skipping.
-- A terminal branch shorter than 500 ft is visible in dashed gray but is not
+- A terminal branch shorter than 200 ft is visible in dashed gray but is not
   required route coverage.
 - Short segments connecting two streets are never skipped merely because the
-  individual GIS segment is under 500 ft.
+  individual GIS segment is under 200 ft.
 - Consecutive segments are measured as one complete terminal branch.
 - A short branch containing START or a chosen FINISH is retained as coverage.
 - Loops, roundabouts, and branched streets are not treated as terminal spurs.
+- If skipping a branch prevents continuous routing, that complete branch is
+  restored automatically and the route builder retries.
 
 ROUTING
 - Supports automatic FINISH, a chosen FINISH, and return to START.
