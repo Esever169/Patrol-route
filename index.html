@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.13</title>
+  <title>Patrol Route v0.19.0</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,10 +22,10 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.13</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Map-Buddy v0.19.0</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
-    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. Complete connected-street coverage is retained by default. Use the road editor for deliberate exclusions, or enable the experimental corridor option for comparison.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><label class="check"><input id="simplifyCorridors" type="checkbox"> Experimental: omit redundant main corridors</label><button id="loadBtn">Load Connected Streets</button>
+    <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform patrol area. Map-Buddy retains the connected street network and skips only terminal dead-end branches shorter than 500 ft. Skipped branches remain visible in gray.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><button id="loadBtn">Load Connected Streets</button>
 <button id="editRoadModeBtn" class="secondary" disabled style="margin-top:8px">Edit Roads: OFF</button>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
   <button id="deleteRoadBtn" class="secondary" disabled>Delete Selected Roads</button>
@@ -36,7 +36,7 @@
 <div id="roadSelectionText" class="progress-text" style="margin-top:6px">No roads selected</div>
 </section>
     <section class="card"><h2>Route status</h2><div id="status" class="status">Adjust the boundary, choose START, then load roads.</div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div><div id="progressText" class="progress-text">Route not started</div><button id="routeBtn" disabled>Build Optimized Route</button><button id="reverseBtn" class="secondary" disabled>Reverse Route</button><button id="simulateBtn" class="secondary" disabled>Simulate Drive</button><button id="gpsBtn" class="secondary" disabled>Use Live GPS</button></section>
-    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Excluded junction corridors</span><b id="feederStat">—</b><span>Loop / block groups</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Block revisits</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Pruned branch savings</span><b id="prunedBranchStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
+    <details class="card"><summary><b>Technical details</b></summary><div class="stats" style="margin-top:10px"><span>Primary source</span><b>County GIS</b><span>New-street supplements</span><b id="osmStat">—</b><span>Routed segments</span><b id="segmentStat">—</b><span>Named streets</span><b id="streetStat">—</b><span>Unique road miles</span><b id="mileStat">—</b><span>Short branches skipped</span><b id="shortBranchStat">—</b><span>Selected components</span><b id="componentStat">—</b><span>Ignored fragments</span><b id="ignoredStat">—</b><span>Boundary exclusions</span><b id="boundaryStat">—</b><span>Paired carriageways</span><b id="corridorStat">—</b><span>Inserted intersections</span><b id="intersectionStat">—</b><span>Detected roundabouts</span><b id="roundaboutStat">—</b><span>Excluded junction corridors</span><b id="feederStat">—</b><span>Loop / block groups</span><b id="clusterStat">—</b><span>Topology repairs</span><b id="repairStat">—</b><span>Intersection reversals</span><b id="uturnStat">—</b><span>Main-strip repeats</span><b id="mainRepeatStat">—</b><span>Block revisits</span><b id="reentryStat">—</b><span>Connector coverage credited</span><b id="connectorCreditStat">—</b><span>Forced completed-zone transit</span><b id="forcedTransitStat">—</b><span>Cleanup savings</span><b id="cleanupStat">—</b><span>Pruned branch savings</span><b id="prunedBranchStat">—</b><span>Excluded non-local</span><b id="excludedStat">—</b></div></details>
     <section class="card"><h2>Route efficiency</h2><div class="stats"><span>Unique coverage</span><b id="uniqueMetric">—</b><span>Baseline double-back</span><b id="baselineMetric">—</b><span>Optimized route</span><b id="totalMetric">—</b><span>Miles saved</span><b id="savingsMetric">—</b><span>Repeated travel</span><b id="repeatMetric">—</b><span>Efficiency</span><b id="effMetric">—</b><span>Most repeated street</span><b id="repeatedStreetMetric">—</b><span>Bridge-repeat floor</span><b id="bridgeFloorMetric">—</b><span>Above bridge floor</span><b id="avoidableMetric">—</b><span>Optimized FINISH</span><b id="finishMetric">—</b></div></section>
   </aside>
   <div id="map"></div>
@@ -53,7 +53,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,att
 const drawn=new L.FeatureGroup().addTo(map), roadLayer=L.layerGroup().addTo(map), gapLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map), markerLayer=L.layerGroup().addTo(map);
 const shapeStyle={color:'#ffd34e',weight:3,fillOpacity:.06};
 const drawControl=new L.Control.Draw({position:'topright',draw:{polygon:{shapeOptions:shapeStyle},rectangle:{shapeOptions:shapeStyle},circle:{shapeOptions:shapeStyle,showRadius:true,metric:true,feet:true},polyline:false,circlemarker:false,marker:false},edit:{featureGroup:drawn,remove:false}}).addTo(map);
-let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,suppressedFeeders=0,patrolClusters=[],selectedRoadIds=new Set(),deletedRoadHistory=[],deletedRoadArchive=[],editRoadMode=false,routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0,prunedBranchSaved:0};
+let boundary,startLatLng,startMarker,finishLatLng,finishMarker,features=[],excluded=[],edges=[],components=[],routeCoords=[],routeCum=[],routeEdgeIds=[],gapRecords=[],routeLine,completedLine,patrolMarker,simTimer=null,gpsWatch=null,progressIndex=0,choosingStart=false,choosingFinish=false,insertedIntersections=0,ignoredFragments=0,detectedLoops=0,topologyRepairs=0,osmSupplementCount=0,boundaryExclusions=0,pairedCarriageways=0,suppressedFeeders=0,shortBranchesSkipped=0,patrolClusters=[],selectedRoadIds=new Set(),deletedRoadHistory=[],deletedRoadArchive=[],editRoadMode=false,routeQuality={uturns:0,mainRepeats:0,reentries:0,connectorCredits:0,forcedTransit:0,cleanupSaved:0,prunedBranchSaved:0};
 const defaultBoundary=L.polygon([[28.5004,-82.5528],[28.5002,-82.5349],[28.4854,-82.5348],[28.4848,-82.5524]],{color:'#ffd34e',weight:3,fillOpacity:.06}).addTo(drawn); boundary=defaultBoundary;
 map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();boundary=e.layer.addTo(drawn);clearResults();});
 map.on(L.Draw.Event.EDITED,e=>{e.layers.eachLayer(l=>boundary=l);clearResults();});
@@ -120,9 +120,9 @@ async function loadRoads(){try{if(!boundary)throw Error('Draw a patrol boundary 
 keepStartComponent();
 if(typeof rebuildSemanticGraph!=='function')throw new Error('Semantic graph rebuild function failed to initialize.');
 rebuildSemanticGraph();
-const simplify=$('simplifyCorridors')?.checked===true,autoExcluded=simplify?excludeUnneededJunctionCorridors():0,transitOnly=simplify?0:excludeUnneededJunctionCorridors('optional');
+shortBranchesSkipped=markShortTerminalBranches(152.4);
 renderGraph();
-updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded.'+(simplify?(autoExcluded?' Experimental simplification excluded '+autoExcluded+' corridor segment'+(autoExcluded===1?'':'s')+'.':' Experimental simplification found no safe corridor to omit.'):' All streets remain visible; '+transitOnly+' safely redundant main-corridor segment'+(transitOnly===1?' is':'s are')+' transit-only.')+' Turn on Edit Roads for manual adjustments, or build the route.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
+updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded. '+shortBranchesSkipped+' terminal branch'+(shortBranchesSkipped===1?'':'es')+' under 500 ft '+(shortBranchesSkipped===1?'was':'were')+' left visible but skipped from required coverage. Build the route when ready.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
 function finishMode(){return document.querySelector('input[name=finishMode]:checked').value}
 function keepStartComponent(){
  const original=components.length;
@@ -170,6 +170,38 @@ function rebuildSemanticGraph(){
  }));
 
  return nodes
+}
+
+function markShortTerminalBranches(maxMeters=152.4){
+ shortBranchesSkipped=0;
+ edges.forEach(e=>{e.visibleSkipped=false});
+ const incident=new Map();
+ edges.forEach((e,id)=>{for(const k of [e.ak,e.bk]){if(!incident.has(k))incident.set(k,[]);incident.get(k).push(id)}});
+ const claimed=new Set(),anchors=[startLatLng];
+ if(finishMode()==='choose'&&finishLatLng)anchors.push(finishLatLng);
+ for(const [leaf,ids] of incident){
+  if(ids.length!==1||claimed.has(ids[0]))continue;
+  const chain=[];let node=leaf,edgeId=ids[0],endDegree=1;
+  while(true){
+   if(chain.includes(edgeId))break;
+   chain.push(edgeId);
+   const e=edges[edgeId],next=e.ak===node?e.bk:e.ak,nextIds=incident.get(next)||[];
+   endDegree=nextIds.length;
+   if(endDegree!==2)break;
+   const nextEdge=nextIds[0]===edgeId?nextIds[1]:nextIds[0];
+   node=next;edgeId=nextEdge
+  }
+  for(const id of chain)claimed.add(id);
+  if(endDegree<3)continue;
+  const total=chain.reduce((sum,id)=>sum+(edges[id]?.length||0),0);
+  if(total>=maxMeters)continue;
+  if(chain.some(id=>{const e=edges[id];return !e||e.synthetic||e.roundabout||e.roundaboutApproach||e.junctionFeeder}))continue;
+  const nearAnchor=anchors.some(p=>chain.some(id=>{const e=edges[id];return projectToSegment(p,e.a,e.b).d<=30}));
+  if(nearAnchor)continue;
+  for(const id of chain){edges[id].required=false;edges[id].visibleSkipped=true}
+  shortBranchesSkipped++
+ }
+ return shortBranchesSkipped
 }
 
 
@@ -245,7 +277,7 @@ function excludeUnneededJunctionCorridors(behavior='remove'){
  if(!candidateIds.size){suppressedFeeders=0;return 0}
 
  if(behavior==='optional'){
-  for(const id of candidateIds)if(edges[id])edges[id].required=false;
+  for(const id of candidateIds)if(edges[id]){edges[id].required=false;edges[id].autoTransitOnly=true}
   suppressedFeeders=0;
   return candidateIds.size
  }
@@ -727,13 +759,13 @@ function toggleRoadSelection(id){
 function renderGraph(){
  roadLayer.clearLayers();
  edges.forEach((e,id)=>{
-  const optional=!e.required&&!e.synthetic,osm=e.p.SOURCE==='OSM',round=e.roundabout,roundApproach=e.roundaboutApproach,feeder=e.junctionFeeder,main=e.mainConnector,selected=selectedRoadIds.has(id);
-  const baseColor=round?'#6d5bd0':roundApproach?'#8b78df':feeder?'#9aa7b4':main?'#52718f':optional?'#86a9c5':osm?'#f59e0b':'#2583d8';
+  const optional=!e.required&&!e.synthetic,skipped=e.visibleSkipped,osm=e.p.SOURCE==='OSM',round=e.roundabout,roundApproach=e.roundaboutApproach,feeder=e.junctionFeeder,main=e.mainConnector,selected=selectedRoadIds.has(id);
+  const baseColor=skipped?'#8b949e':round?'#6d5bd0':roundApproach?'#8b78df':feeder?'#9aa7b4':main?'#52718f':optional?'#86a9c5':osm?'#f59e0b':'#2583d8';
   const color=selected?'#d92d20':baseColor;
-  const weight=selected?8:round?4:main?4:optional?3:5;
-  const dash=selected?null:round?'3 5':osm?'7 5':optional?'4 5':null;
+  const weight=selected?8:skipped?4:round?4:main?4:optional?3:5;
+  const dash=selected?null:skipped?'8 6':round?'3 5':osm?'7 5':optional?'4 5':null;
   const layer=L.polyline([e.a,e.b],{color,weight,opacity:selected?1:optional?.5:.86,dashArray:dash,interactive:true})
-   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':feeder?'Junction feeder — retained for connectivity':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
+   .bindPopup('<b>'+escapeHtml(roadName(e.p))+'</b><br>'+(selected?'<b>SELECTED FOR DELETION</b><br>': '')+(skipped?'Short terminal branch — visible, under 500 ft, and skipped':round?'Roundabout / connector — not required coverage':roundApproach?'Roundabout approach — junction only':feeder?'Junction feeder — retained for connectivity':main?'Neighborhood spine / main connector':optional?'Paired roadway — covered from the opposing side':osm?'OpenStreetMap supplement':'County GIS coverage street')+'<br><em>Tap road to '+(selected?'unselect':'select')+'.</em>')
    .addTo(roadLayer);
   layer.on('click',ev=>{
    if(!editRoadMode)return;
@@ -803,7 +835,19 @@ function diagnoseGaps(){gapLayer.clearLayers();gapRecords=[];if(components.lengt
 function focusGap(index){const selected=gapRecords[index];if(!selected)return;gapRecords.forEach((r,i)=>{r.line.setStyle(i===index?{color:'#d92d20',weight:8,dashArray:'12 7',opacity:1}:{color:'#ff7a18',weight:4,dashArray:'9 7',opacity:.95});r.aMarker.setStyle({radius:i===index?9:6,weight:i===index?3:2});r.bMarker.setStyle({radius:i===index?9:6,weight:i===index?3:2})});document.querySelectorAll('.gap').forEach((el,i)=>el.classList.toggle('selected',i===index));const bounds=L.latLngBounds([selected.g.a.p,selected.g.b.p]).pad(1.8);map.fitBounds(bounds,{maxZoom:19,padding:[55,55],animate:true});selected.line.openPopup(interp(selected.g.a.p,selected.g.b.p,.5));setStatus('Focused on Gap '+(index+1)+'. This candidate remains diagnostic only and has not been connected.');}
 function findExcluded(g){let best=null;for(const f of excluded){const cs=f.geometry.coordinates;for(let i=1;i<cs.length;i++){const a=L.latLng(cs[i-1][1],cs[i-1][0]),b=L.latLng(cs[i][1],cs[i][0]);for(const p of [g.a.p,g.b.p,interp(g.a.p,g.b.p,.5)]){const d=projectToSegment(p,a,b).d;if(!best||d<best.d)best={f,d}}}}return best&&best.d<=12.192?best:null}
 function gapPopup(g,hit,feet){return '<b>'+Math.round(feet)+' ft diagnostic gap</b><br>Component '+(g.i+1)+': '+escapeHtml(g.a.name)+'<br>Component '+(g.j+1)+': '+escapeHtml(g.b.name)+'<br><br>'+(hit?'<b>Excluded county segment nearby</b><br>'+escapeHtml(roadName(hit.f.properties))+' — '+escapeHtml(exclusionReason(hit.f.properties)):'No filtered county segment found within 40 ft.')+'<br><em>Diagnostic only — not connected.</em>'}
-function updateStats(){const covered=edges.filter(e=>!e.synthetic&&e.required),names=new Set(covered.map(e=>roadName(e.p)).filter(n=>n!=='Unnamed road')),miles=covered.reduce((s,e)=>s+e.length,0)/1609.344;$('osmStat').textContent=osmSupplementCount;$('segmentStat').textContent=edges.length;$('streetStat').textContent=names.size;$('streetStat').title=[...names].sort().join(', ');$('mileStat').textContent=miles.toFixed(2);$('componentStat').textContent=1;$('ignoredStat').textContent=ignoredFragments;$('intersectionStat').textContent=insertedIntersections;$('roundaboutStat').textContent=detectedLoops;$('feederStat').textContent=suppressedFeeders;$('clusterStat').textContent=patrolClusters.length;$('repairStat').textContent=topologyRepairs;$('boundaryStat').textContent=boundaryExclusions;$('corridorStat').textContent=pairedCarriageways;$('excludedStat').textContent=excluded.length;$('excludedStat').title=excluded.map(f=>roadName(f.properties)+' — '+exclusionReason(f.properties)).sort().join(', ');$('uniqueMetric').textContent=miles.toFixed(2)+' mi'}
+function updateStats(){const covered=edges.filter(e=>!e.synthetic&&e.required),names=new Set(covered.map(e=>roadName(e.p)).filter(n=>n!=='Unnamed road')),miles=covered.reduce((s,e)=>s+e.length,0)/1609.344;$('osmStat').textContent=osmSupplementCount;$('segmentStat').textContent=edges.length;$('streetStat').textContent=names.size;$('streetStat').title=[...names].sort().join(', ');$('mileStat').textContent=miles.toFixed(2);$('shortBranchStat').textContent=shortBranchesSkipped;$('componentStat').textContent=1;$('ignoredStat').textContent=ignoredFragments;$('intersectionStat').textContent=insertedIntersections;$('roundaboutStat').textContent=detectedLoops;$('feederStat').textContent=suppressedFeeders;$('clusterStat').textContent=patrolClusters.length;$('repairStat').textContent=topologyRepairs;$('boundaryStat').textContent=boundaryExclusions;$('corridorStat').textContent=pairedCarriageways;$('excludedStat').textContent=excluded.length;$('excludedStat').title=excluded.map(f=>roadName(f.properties)+' — '+exclusionReason(f.properties)).sort().join(', ');$('uniqueMetric').textContent=miles.toFixed(2)+' mi'}
+function retryWithOneTransitSegment(){
+ const requiredDegree=new Map(),candidates=[];
+ for(const e of edges)if(e.required){requiredDegree.set(e.ak,(requiredDegree.get(e.ak)||0)+1);requiredDegree.set(e.bk,(requiredDegree.get(e.bk)||0)+1)}
+ edges.forEach((e,id)=>{if(!e.autoTransitOnly||e.required)return;const score=(requiredDegree.get(e.ak)||0)+(requiredDegree.get(e.bk)||0);candidates.push({id,score,length:e.length})});
+ if(!candidates.length)return false;
+ candidates.sort((a,b)=>b.score-a.score||a.length-b.length);
+ const chosen=edges[candidates[0].id];chosen.required=true;chosen.autoTransitOnly=false;
+ rebuildSemanticGraph();renderGraph();updateStats();
+ setStatus('Adjusting the transit-only corridor to preserve continuous routing…');
+ setTimeout(buildRoute,0);
+ return true
+}
 function buildRoute(){
  if(!edges.length){setStatus('Load roads before building the route.','error');return}
  setStatus('Decomposing streets into loops, blocks, bridges and spurs…');
@@ -1309,6 +1353,7 @@ function buildRoute(){
  }
 
  if(!serviceComp(rootComp,start)){
+  if(retryWithOneTransitSegment())return;
   setStatus('Block/loop traversal could not produce a continuous route.','error');
   return
  }
@@ -1317,6 +1362,7 @@ function buildRoute(){
  // exist, but verify coverage rather than silently succeeding.
  const missed=edges.map((e,id)=>e.required&&!coveredRequired.has(id)?id:null).filter(id=>id!==null);
  if(missed.length){
+  if(retryWithOneTransitSegment())return;
   setStatus('Block traversal stopped with '+missed.length+' required segments uncovered.','error');
   return
  }

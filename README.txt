@@ -1,56 +1,30 @@
-PATROL ROUTE v0.18.13 — TRANSIT-ONLY REDUNDANT CORRIDORS
+PATROL ROUTE MAP-BUDDY v0.19.0
 
-Why this change:
-v0.18.4 only changed roundabout feeder corridors to non-required coverage.
-Those roads still remained in the routing graph and could distort block/bridge
-topology or prevent the block solver from finding a continuous route.
-Manual deletion worked because it removed the roads before topology was built.
+PURPOSE
+Select a patrol area in Hernando County, build a practical coverage route, and
+follow the remaining blue line. During simulation or live GPS, completed route
+segments disappear behind the patrol marker in a Pac-Man-style display.
 
-v0.18.13 separates map completeness from route coverage:
-- Complete connected-street coverage is retained when roads are loaded.
-- Safely redundant county main-corridor segments remain visible and drivable but
-  are marked transit-only, preventing a patrol trip down and back solely for coverage.
-- Transit-only corridors remain available when genuinely needed to reach coverage.
-- Automatic corridor deletion stays disabled by default after tests in larger
-  areas showed that semantic classification could remove valid streets.
-- A clearly labeled experimental checkbox can enable corridor simplification for
-  comparison, while Edit Roads remains the dependable manual override.
-- The normal default never runs destructive pre-routing corridor cleanup.
+CORE COVERAGE RULES
+- Every connected eligible street remains visible on the map.
+- Residential and connector roads remain available for travel.
+- Only terminal branches from a dead end to the final junction are considered
+  for automatic skipping.
+- A terminal branch shorter than 500 ft is visible in dashed gray but is not
+  required route coverage.
+- Short segments connecting two streets are never skipped merely because the
+  individual GIS segment is under 500 ft.
+- Consecutive segments are measured as one complete terminal branch.
+- A short branch containing START or a chosen FINISH is retained as coverage.
+- Loops, roundabouts, and branched streets are not treated as terminal spurs.
 
-When experimental simplification is enabled:
-- Evaluates major-class roads, or named corridors where at least half of the
-  segments carry a county MINOR/MAJOR classification and lie within 30 m of a
-  detected junction corridor.
-- Temporarily removes the whole named main-strip + junction corridor before
-  block and bridge topology is built.
-- Tests whether every required residential edge remains reachable from START.
-- Residential side-street connections no longer automatically protect the
-  main corridor when the same streets remain reachable through the neighborhood.
-- If whole-corridor removal is unsafe, removes only individually safe junction
-  and main-strip pieces and keeps the portions genuinely required for transit.
-- Ordinary residential spines with unclassified county segments remain protected,
-  including Hornbeam, Obsidian, Goldfoil, Feldspar and similar neighborhood roads.
-- Junction and loop candidates are no longer greedily deleted one segment at a
-  time. Only the proven-redundant main corridor and pieces truly orphaned by its
-  removal are deleted; connected residential loops such as Genovesa remain.
-- OSM supplements are always treated as protected residential coverage and are
-  never promoted to automatic main-corridor removal candidates.
-- Rebuilds graph keys and semantic classification after exclusion.
-- The block/loop engine then sees the same reduced topology that manual deletion
-  would have produced.
-- The existing Edit Roads mode remains available as a manual override.
+ROUTING
+- Supports automatic FINISH, a chosen FINISH, and return to START.
+- Required streets are routed continuously through the connected driving graph.
+- Transit-only and skipped streets remain available when needed for connectivity.
+- The existing block/loop traversal, subtree pruning, road editor, county GIS,
+  OSM supplements, divided-road handling, GPS, and simulation remain available.
 
-Preserved:
-- v0.18 block/loop traversal
-- live subtree pruning
-- roundabout topology detection
-- in-block local continuity scoring
-- right-turn loop tie-breaking
-- bridge-repeat floor metrics
-- county GIS + OSM supplement
-- divided-road handling
-- START / FINISH modes
-- GPS and simulation
-
-Deployment:
-Replace repository-root files and commit to main. Hard-refresh once after deployment.
+DEPLOYMENT
+Upload index.html, manifest.webmanifest, service-worker.js, and README.txt to the
+repository root. Commit to main and hard-refresh once after deployment.
