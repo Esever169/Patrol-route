@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#12243a">
-  <title>Patrol Route v0.18.12</title>
+  <title>Patrol Route v0.18.13</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-<header><h1>Patrol Route</h1><span>Prototype v0.18.12</span><small>Hernando County Central GIS Streets</small></header>
+<header><h1>Patrol Route</h1><span>Prototype v0.18.13</span><small>Hernando County Central GIS Streets</small></header>
 <main class="app">
   <aside class="panel">
     <section class="card"><h2>1. Patrol area</h2><div class="muted">Draw a circle, rectangle, or freeform area with the map tools. Complete connected-street coverage is retained by default. Use the road editor for deliberate exclusions, or enable the experimental corridor option for comparison.</div><button id="startBtn" class="secondary">Choose START on Map</button><h2 style="margin-top:12px">2. Finish</h2><div class="finish-options"><label><input type="radio" name="finishMode" value="auto" checked> Auto-finish (least repeat)</label><label><input type="radio" name="finishMode" value="choose"> Choose FINISH on map</label><label><input type="radio" name="finishMode" value="return"> Return to START</label></div><button id="finishBtn" class="secondary" disabled>Choose FINISH on Map</button><label class="check"><input id="includeNonLocal" type="checkbox"> Include non-local roads</label><label class="check"><input id="simplifyCorridors" type="checkbox"> Experimental: omit redundant main corridors</label><button id="loadBtn">Load Connected Streets</button>
@@ -120,9 +120,9 @@ async function loadRoads(){try{if(!boundary)throw Error('Draw a patrol boundary 
 keepStartComponent();
 if(typeof rebuildSemanticGraph!=='function')throw new Error('Semantic graph rebuild function failed to initialize.');
 rebuildSemanticGraph();
-const simplify=$('simplifyCorridors')?.checked===true,autoExcluded=simplify?excludeUnneededJunctionCorridors():0;
+const simplify=$('simplifyCorridors')?.checked===true,autoExcluded=simplify?excludeUnneededJunctionCorridors():0,transitOnly=simplify?0:excludeUnneededJunctionCorridors('optional');
 renderGraph();
-updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded.'+(simplify?(autoExcluded?' Experimental simplification excluded '+autoExcluded+' corridor segment'+(autoExcluded===1?'':'s')+'.':' Experimental simplification found no safe corridor to omit.'):' Complete connected coverage was retained.')+' Turn on Edit Roads for manual adjustments, or build the route.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
+updateStats();updateRoadSelectionUi();setStatus('Connected streets loaded.'+(simplify?(autoExcluded?' Experimental simplification excluded '+autoExcluded+' corridor segment'+(autoExcluded===1?'':'s')+'.':' Experimental simplification found no safe corridor to omit.'):' All streets remain visible; '+transitOnly+' safely redundant main-corridor segment'+(transitOnly===1?' is':'s are')+' transit-only.')+' Turn on Edit Roads for manual adjustments, or build the route.','good');$('routeBtn').disabled=false}catch(err){console.error(err);setStatus('Load failed: '+err.message,'error')}}
 function finishMode(){return document.querySelector('input[name=finishMode]:checked').value}
 function keepStartComponent(){
  const original=components.length;
@@ -173,7 +173,7 @@ function rebuildSemanticGraph(){
 }
 
 
-function excludeUnneededJunctionCorridors(){
+function excludeUnneededJunctionCorridors(behavior='remove'){
  // Evaluate whole named main corridors before block/bridge topology is built.
  // A side-street branch does not protect a main strip by itself: the deciding
  // question is whether every required residential edge remains reachable.
@@ -243,6 +243,12 @@ function excludeUnneededJunctionCorridors(){
  }
 
  if(!candidateIds.size){suppressedFeeders=0;return 0}
+
+ if(behavior==='optional'){
+  for(const id of candidateIds)if(edges[id])edges[id].required=false;
+  suppressedFeeders=0;
+  return candidateIds.size
+ }
 
  const removed=edges.filter((_,id)=>candidateIds.has(id));
  edges=edges.filter((_,id)=>!candidateIds.has(id));

@@ -1,4 +1,4 @@
-PATROL ROUTE v0.18.12 — COMPLETE COVERAGE BY DEFAULT
+PATROL ROUTE v0.18.13 — TRANSIT-ONLY REDUNDANT CORRIDORS
 
 Why this change:
 v0.18.4 only changed roundabout feeder corridors to non-required coverage.
@@ -6,10 +6,13 @@ Those roads still remained in the routing graph and could distort block/bridge
 topology or prevent the block solver from finding a continuous route.
 Manual deletion worked because it removed the roads before topology was built.
 
-v0.18.12 changes the safety default:
+v0.18.13 separates map completeness from route coverage:
 - Complete connected-street coverage is retained when roads are loaded.
-- Automatic corridor deletion is disabled by default after tests in larger areas
-  showed that semantic classification could remove valid neighborhood streets.
+- Safely redundant county main-corridor segments remain visible and drivable but
+  are marked transit-only, preventing a patrol trip down and back solely for coverage.
+- Transit-only corridors remain available when genuinely needed to reach coverage.
+- Automatic corridor deletion stays disabled by default after tests in larger
+  areas showed that semantic classification could remove valid streets.
 - A clearly labeled experimental checkbox can enable corridor simplification for
   comparison, while Edit Roads remains the dependable manual override.
 - The normal default never runs destructive pre-routing corridor cleanup.
